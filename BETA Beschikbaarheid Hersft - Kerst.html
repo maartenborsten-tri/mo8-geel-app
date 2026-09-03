@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MO8 Geel · BMHV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --blue:#1E3A6E;
+    --blue-dark:#12274d;
+    --bordeaux:#7C2D42;
+    --yellow:#F4C430;
+    --cream:#FBF7EC;
+    --ink:#20201C;
+    --line:#E6DCC3;
+    --grey:#8b8577;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Karla',sans-serif;
+    padding-bottom:60px;
+  }
+  .hero{
+    background:var(--blue);
+    background-image:linear-gradient(135deg,var(--blue) 0%,var(--blue-dark) 100%);
+    color:white;
+    padding:28px 20px 34px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::after{
+    content:"";
+    position:absolute;
+    right:-30px; top:-30px;
+    width:140px; height:140px;
+    border-radius:50%;
+    background:var(--bordeaux);
+    opacity:0.55;
+  }
+  .hero-inner{position:relative; z-index:1;}
+  .crest-row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .crest{
+    width:46px; height:46px;
+    border-radius:50%;
+    background:white;
+    padding:4px;
+    object-fit:contain;
+    flex:none;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+  }
+  .stick-icon{
+    width:22px; height:22px;
+    vertical-align:middle;
+    margin-left:4px;
+    position:relative;
+    top:-2px;
+  }
+  .cuff{
+    position:absolute;
+    left:0; right:0; bottom:0;
+    display:flex;
+    flex-direction:column;
+    z-index:1;
+  }
+  .cuff .piping{height:2px; background:rgba(255,255,255,0.85);}
+  .cuff .bordeaux-band{height:7px; background:var(--bordeaux);}
+  .cuff .yellow-band{height:5px; background:var(--yellow);}
+  .eyebrow{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:0.14em;
+    font-size:12px;
+    color:var(--yellow);
+    margin:0 0 4px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-size:30px;
+    margin:0;
+    letter-spacing:0.01em;
+  }
+  .sub{
+    margin:6px 0 0;
+    font-size:14px;
+    color:#d9e0ee;
+  }
+  .wrap{max-width:640px; margin:0 auto; padding:0 16px;}
+  .whoami{
+    background:white;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 16px;
+    margin:-18px 0 18px;
+    position:relative;
+    z-index:2;
+    box-shadow:0 4px 14px rgba(30,58,110,0.10);
+  }
+  .whoami label{
+    font-family:'Oswald',sans-serif;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--blue);
+    display:block;
+    margin-bottom:6px;
+  }
+  select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:9px;
+    border:1.5px solid var(--line);
+    background:var(--cream);
+    font-family:'Karla',sans-serif;
+    font-size:15px;
+    color:var(--ink);
+  }
+  .section-title{
+    font-family:'Oswald',sans-serif;
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    color:var(--grey);
+    margin:22px 2px 10px;
+  }
+  .match-card{
+    background:white;
+    border-radius:16px;
+    border:1px solid var(--line);
+    margin-bottom:16px;
+    overflow:hidden;
+    box-shadow:0 3px 10px rgba(30,58,110,0.06);
+  }
+  .match-card.next{
+    border-color:var(--yellow);
+    box-shadow:0 4px 16px rgba(244,196,48,0.35);
+  }
+  .match-top{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:14px 16px;
+    cursor:pointer;
+    background:linear-gradient(90deg, rgba(30,58,110,0.04), transparent);
+  }
+  .date-badge{
+    flex:none;
+    width:52px; height:52px;
+    border-radius:10px;
+    background:var(--blue);
+    color:white;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    font-family:'Oswald',sans-serif;
+    line-height:1;
+  }
+  .date-badge .d{font-size:19px; font-weight:700;}
+  .date-badge .m{font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-top:2px;}
+  .match-info{flex:1; min-width:0;}
+  .match-info .opp{
+    font-family:'Oswald',sans-serif;
+    font-size:16px;
+    font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .match-info .meta{
+    font-size:12.5px;
+    color:var(--grey);
+    margin-top:2px;
+  }
+  .tag{
+    flex:none;
+    font-family:'Oswald',sans-serif;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    padding:4px 9px;
+    border-radius:999px;
+  }
+  .tag.thuis{background:#e7f0e4; color:#3c6b34;}
+  .tag.uit{background:#f6e6e9; color:var(--bordeaux);}
+  .tag.veld{background:#e7edf6; color:var(--blue);}
+  .chev{flex:none; color:var(--grey); font-size:13px; transition:transform 0.15s;}
+  .match-card.open .chev{transform:rotate(180deg);}
+  .next-flag{
+    background:var(--yellow);
+    color:var(--blue-dark);
+    font-family:'Oswald',sans-serif;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    padding:3px 16px;
+    font-weight:700;
+  }
+  .match-body{
+    display:none;
+    border-top:1px dashed var(--line);
+    padding:14px 16px 16px;
+  }
+  .match-card.open .match-body{display:block;}
+  .player-row{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+    padding:10px 0;
+    border-bottom:1px solid #f1ede0;
+  }
+  .player-row:last-of-type{border-bottom:none;}
+  .player-name{
+    font-size:14.5px;
+    font-weight:600;
+  }
+  .player-controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px 20px;
+  }
+  .control-group{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex:none;
+  }
+  .pillgroup{display:flex; gap:5px; flex:none;}
+  .pill{
+    font-family:'Karla',sans-serif;
+    font-size:12.5px;
+    font-weight:700;
+    padding:6px 11px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    background:var(--cream);
+    color:var(--grey);
+    cursor:pointer;
+    user-select:none;
+  }
+  .pill.ja.active{background:#3c6b34; border-color:#3c6b34; color:white;}
+  .pill.nee.active{background:var(--bordeaux); border-color:var(--bordeaux); color:white;}
+  .field-label{
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--grey);
+    flex:none;
+  }
+  .subhead{
+    font-family:'Oswald',sans-serif;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--blue);
+    margin:16px 0 8px;
+  }
+  .fruit-chips{display:flex; flex-wrap:wrap; gap:7px;}
+  .fruit-chip{
+    padding:7px 12px;
+    border-radius:999px;
+    border:1.5px solid var(--line);
+    background:var(--cream);
+    font-size:13px;
+    cursor:pointer;
+  }
+  .fruit-chip.active{background:var(--yellow); border-color:var(--yellow); color:var(--blue-dark); font-weight:700;}
+  .driver-chip.active{background:var(--blue); border-color:var(--blue); color:white;}
+  .driver-count{
+    display:inline-block;
+    font-family:'Karla',sans-serif;
+    font-size:11px;
+    font-weight:700;
+    padding:2px 8px;
+    border-radius:999px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .driver-count.ok{background:#e7f0e4; color:#3c6b34;}
+  .driver-count.warn{background:#f6e6e9; color:var(--bordeaux);}
+  .announce-box{
+    margin-top:20px;
+    background:var(--cream);
+    border:2px solid var(--blue);
+    border-radius:12px;
+    padding:14px 16px 16px;
+  }
+  .announce-title{
+    font-family:'Oswald',sans-serif;
+    font-size:14px;
+    font-weight:700;
+    color:var(--blue-dark);
+    margin-bottom:10px;
+  }
+  .announce-row{
+    font-size:13.5px;
+    line-height:1.5;
+    margin-bottom:7px;
+  }
+  .announce-row:last-child{margin-bottom:0;}
+  .announce-row.warn{
+    color:var(--bordeaux);
+    font-weight:700;
+  }
+  .empty{
+    text-align:center;
+    color:var(--grey);
+    padding:34px 20px;
+    font-size:14.5px;
+    background:white;
+    border-radius:14px;
+    border:1px dashed var(--line);
+  }
+  .admin-toggle{
+    text-align:center;
+    margin:26px 0 10px;
+  }
+  .link-btn{
+    background:none;
+    border:none;
+    color:var(--blue);
+    font-family:'Oswald',sans-serif;
+    font-size:12.5px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:8px;
+  }
+  .admin-panel{
+    background:white;
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:20px;
+  }
+  .admin-panel h3{
+    font-family:'Oswald',sans-serif;
+    font-size:15px;
+    margin:0 0 12px;
+  }
+  .form-row{margin-bottom:10px;}
+  .form-row label{
+    display:block;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--grey);
+    margin-bottom:4px;
+  }
+  .form-row input, .form-row select{
+    width:100%;
+    padding:9px 10px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    font-size:14.5px;
+    font-family:'Karla',sans-serif;
+    background:var(--cream);
+  }
+  .btn-primary{
+    background:var(--blue);
+    color:white;
+    border:none;
+    padding:11px 18px;
+    border-radius:9px;
+    font-family:'Oswald',sans-serif;
+    font-size:13.5px;
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+    cursor:pointer;
+    width:100%;
+  }
+  .existing-match{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 0 4px;
+    font-size:13.5px;
+  }
+  .existing-match .em-info{flex:1;}
+  .existing-match-flags{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:7px;
+    padding:0 0 10px;
+    border-bottom:1px solid #f1ede0;
+  }
+  .flag-toggle{
+    font-size:11.5px;
+    padding:5px 10px;
+    border-radius:7px;
+    border:1.5px solid var(--line);
+    background:var(--cream);
+    color:var(--grey);
+    cursor:pointer;
+  }
+  .flag-toggle.active{background:var(--blue); border-color:var(--blue); color:white; font-weight:700;}
+  .checkbox-row label{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13.5px;
+    text-transform:none;
+    letter-spacing:normal;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .checkbox-row input[type="checkbox"]{
+    width:16px; height:16px;
+    flex:none;
+  }
+  .edit-btn{
+    background:none;
+    border:1.5px solid var(--blue);
+    color:var(--blue);
+    border-radius:7px;
+    font-size:12px;
+    padding:5px 9px;
+    cursor:pointer;
+    flex:none;
+  }
+  .del-btn{
+    background:none;
+    border:1.5px solid var(--bordeaux);
+    color:var(--bordeaux);
+    border-radius:7px;
+    font-size:12px;
+    padding:5px 9px;
+    cursor:pointer;
+    flex:none;
+  }
+  .existing-match.editing .em-info{
+    color:var(--blue);
+    font-weight:700;
+  }
+  .loading{
+    text-align:center;
+    padding:50px 20px;
+    color:var(--grey);
+    font-size:14px;
+  }
+  .toast{
+    position:fixed;
+    bottom:18px; left:50%;
+    transform:translateX(-50%);
+    background:var(--blue-dark);
+    color:white;
+    padding:9px 18px;
+    border-radius:999px;
+    font-size:13px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity 0.2s;
+    z-index:99;
+  }
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner wrap" style="padding:0;">
+    <div class="crest-row">
+      <img class="crest" src="https://irp.cdn-website.com/a80a5bef/dms3rep/multi/opt/bmhv_logo_shape-1920w.png" alt="BMHV" onerror="this.style.display='none'">
+      <div>
+        <p class="eyebrow">BMHV · Baarn</p>
+        <h1>MO8 Geel <svg class="stick-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <circle cx="30" cy="30" r="6" fill="var(--yellow)"/>
+          <path d="M8 4 L16 26 Q18 32 24 30" stroke="white" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+        </svg></h1>
+      </div>
+    </div>
+    <p class="sub">Aanwezigheid, rijden & fruit per wedstrijd</p>
+  </div>
+  <div class="cuff">
+    <div class="piping"></div>
+    <div class="bordeaux-band"></div>
+    <div class="yellow-band"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="whoami">
+    <label for="whoSelect">Wie ben jij?</label>
+    <select id="whoSelect" onchange="onWhoChange()">
+      <option value="">Kies je dochter…</option>
+    </select>
+  </div>
+
+  <div id="content">
+    <div class="loading">Bezig met laden…</div>
+  </div>
+
+  <div class="admin-toggle">
+    <button class="link-btn" onclick="toggleAdmin()">Wedstrijden beheren</button>
+  </div>
+
+  <div id="adminPanel" class="admin-panel" style="display:none;"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const PLAYERS = ["Caroline","Amber","Kiki","Charlotte","Sophia","Fiep","Jolie","Jasmijn"];
+const MAANDEN = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
+
+let matches = [];
+let responses = {};
+let openMatchId = null;
+let adminOpen = false;
+let editingMatchId = null;
+
+// Officiële programma van hockeystanden.nl (Poule N), opgehaald 28-8-2026.
+// Wordt alleen gebruikt om de lijst eenmalig te vullen als er nog geen wedstrijden zijn opgeslagen.
+const SEED_MATCHES = [
+  { id:'seed1', date:'2026-09-05', time:'09:30', opponent:'Hilversum MO8-Turquoise', location:'uit', address:'', veld:'2', witShirt:true },
+  { id:'seed2', date:'2026-09-12', time:'', opponent:'Soest MO8-Oranje', location:'thuis', address:'', veld:'', witShirt:true },
+  { id:'seed3', date:'2026-09-19', time:'', opponent:'Eemvallei MO8-Blauw', location:'thuis', address:'', veld:'', witShirt:true },
+  { id:'seed4', date:'2026-09-26', time:'', opponent:'Laren MO8-Roze', location:'uit', address:'', veld:'', witShirt:true },
+  { id:'seed5', date:'2026-10-03', time:'', opponent:'Spandersbosch MO8-Blauw', location:'thuis', address:'', veld:'', witShirt:true }
+];
+
+function todayISO(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+function defaultResp(){
+  return { players:{}, fruit:null, chauffeurs:[], begeleiders:[] };
+}
+
+// ── Opslag: Google Sheet via Apps Script Web App ──────────────────────────
+// Vul hieronder de URL in die je krijgt na het implementeren van de
+// Apps Script (zie instructies die je apart hebt gekregen). Zonder deze URL
+// kan de app niet opslaan.
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTIyvPnKcW4l-DRN0e0Z2VDUwwcyBCilAVXr-dNUtIwFtvLsIUMa4f4lGwTR0pvTTt/exec';
+
+async function apiGet(key){
+  const res = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(key));
+  if(!res.ok) throw new Error('Netwerkfout bij ophalen');
+  const data = await res.json();
+  return (data && data.value) ? data.value : null;
+}
+
+async function apiSet(key, value){
+  try{
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'set', key, value })
+    });
+  }catch(e){
+    throw new Error('Netwerkfout bij opslaan');
+  }
+}
+
+async function apiDelete(key){
+  try{
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'delete', key })
+    });
+  }catch(e){
+    throw new Error('Netwerkfout bij verwijderen');
+  }
+}
+
+async function loadAll(){
+  let hadNoMatches = false;
+  try{
+    const v = await apiGet('matches');
+    matches = v ? JSON.parse(v) : [];
+  }catch(e){
+    matches = [];
+  }
+  if(matches.length === 0){
+    matches = SEED_MATCHES.map(m=>({...m}));
+    hadNoMatches = true;
+  }
+  matches.forEach(m=>{
+    if(typeof m.witShirt !== 'boolean') m.witShirt = true;
+    if(typeof m.veld !== 'string') m.veld = '';
+  });
+  responses = {};
+  await Promise.all(matches.map(async (match)=>{
+    try{
+      const v = await apiGet('resp:'+match.id);
+      responses[match.id] = v ? JSON.parse(v) : defaultResp();
+      if(!responses[match.id].chauffeurs) responses[match.id].chauffeurs = [];
+      if(!responses[match.id].begeleiders) responses[match.id].begeleiders = [];
+    }catch(e){
+      responses[match.id] = defaultResp();
+    }
+  }));
+
+  if(hadNoMatches){
+    try{ await saveMatches(); }catch(e){ /* volgende lezer probeert het opnieuw */ }
+  }
+  populateWhoSelect();
+  render();
+}
+
+function populateWhoSelect(){
+  const sel = document.getElementById('whoSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Kies je dochter…</option>' +
+    PLAYERS.map(p=>`<option value="${p}">${p}</option>`).join('');
+  sel.value = current;
+}
+
+function onWhoChange(){
+  render();
+}
+
+async function saveMatches(){
+  await apiSet('matches', JSON.stringify(matches));
+}
+
+async function saveResp(matchId){
+  await apiSet('resp:'+matchId, JSON.stringify(responses[matchId]));
+}
+
+function fmtDate(iso){
+  const d = new Date(iso+'T00:00:00');
+  return { d: d.getDate(), m: MAANDEN[d.getMonth()] };
+}
+
+function fmtDateLong(iso){
+  const d = new Date(iso+'T00:00:00');
+  const dagen = ["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"];
+  return dagen[d.getDay()] + ' ' + d.getDate() + ' ' + MAANDEN[d.getMonth()];
+}
+
+function sortedMatches(){
+  return [...matches].sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+}
+
+function nextMatchId(){
+  const today = todayISO();
+  const upcoming = sortedMatches().filter(m=>m.date >= today);
+  return upcoming.length ? upcoming[0].id : null;
+}
+
+function render(){
+  const el = document.getElementById('content');
+  const list = sortedMatches();
+  if(list.length === 0){
+    el.innerHTML = '<div class="empty">Nog geen wedstrijden toegevoegd.<br>Gebruik "Wedstrijden beheren" hieronder om de eerste wedstrijd toe te voegen.</div>';
+    renderAdmin();
+    return;
+  }
+  const nextId = nextMatchId();
+  const whoSel = document.getElementById('whoSelect').value;
+
+  el.innerHTML = '<div class="section-title">Wedstrijden</div>' + list.map(match=>{
+    const isOpen = openMatchId === match.id;
+    const isNext = match.id === nextId;
+    const r = responses[match.id] || defaultResp();
+    const {d,m} = fmtDate(match.date);
+
+    const rows = PLAYERS.map(name=>{
+      const pr = r.players[name] || {};
+      const komtJa = pr.komt === 'ja' ? 'active' : '';
+      const komtNee = pr.komt === 'nee' ? 'active' : '';
+      let rijdenHtml = '';
+      if(match.location === 'uit'){
+        const rijJa = pr.rijden === 'ja' ? 'active' : '';
+        const rijNee = pr.rijden === 'nee' ? 'active' : '';
+        rijdenHtml = `
+          <div class="control-group">
+            <span class="field-label">Rijden</span>
+            <div class="pillgroup">
+              <div class="pill ja ${rijJa}" onclick="setRijden('${match.id}','${name}','ja')">Ja</div>
+              <div class="pill nee ${rijNee}" onclick="setRijden('${match.id}','${name}','nee')">Nee</div>
+            </div>
+          </div>`;
+      }
+      let begeleidenHtml = '';
+      if(match.location === 'thuis'){
+        const begJa = pr.begeleiden === 'ja' ? 'active' : '';
+        const begNee = pr.begeleiden === 'nee' ? 'active' : '';
+        begeleidenHtml = `
+          <div class="control-group">
+            <span class="field-label">Begeleiden</span>
+            <div class="pillgroup">
+              <div class="pill ja ${begJa}" onclick="setBegeleiden('${match.id}','${name}','ja')">Ja</div>
+              <div class="pill nee ${begNee}" onclick="setBegeleiden('${match.id}','${name}','nee')">Nee</div>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="player-row">
+          <div class="player-name">${name}</div>
+          <div class="player-controls">
+            <div class="control-group">
+              <span class="field-label">Komt</span>
+              <div class="pillgroup">
+                <div class="pill ja ${komtJa}" onclick="setKomt('${match.id}','${name}','ja')">Ja</div>
+                <div class="pill nee ${komtNee}" onclick="setKomt('${match.id}','${name}','nee')">Nee</div>
+              </div>
+            </div>
+            ${rijdenHtml}
+            ${begeleidenHtml}
+          </div>
+        </div>`;
+    }).join('');
+
+    const fruitChips = PLAYERS.map(name=>{
+      const active = r.fruit === name ? 'active' : '';
+      return `<div class="fruit-chip ${active}" onclick="setFruit('${match.id}','${name}')">${name}</div>`;
+    }).join('');
+
+    let chauffeursHtml = '';
+    if(match.location === 'uit'){
+      const chauffeurs = r.chauffeurs || [];
+      const count = chauffeurs.length;
+      const okClass = count >= 3 ? 'ok' : 'warn';
+      const chips = PLAYERS.map(name=>{
+        const active = chauffeurs.includes(name) ? 'active' : '';
+        const pr = r.players[name] || {};
+        const suffix = pr.rijden === 'ja' ? ' ✓' : (pr.rijden === 'nee' ? ' ✕' : '');
+        return `<div class="fruit-chip driver-chip ${active}" onclick="toggleChauffeur('${match.id}','${name}')">${name}${suffix}</div>`;
+      }).join('');
+      chauffeursHtml = `
+        <div class="subhead">Chauffeurs aanwijzen <span class="driver-count ${okClass}">${count}/3</span></div>
+        <p style="font-size:12px;color:var(--grey);margin:0 0 8px;">✓ = heeft aangegeven te kunnen rijden, ✕ = kan niet. Kies minimaal 3 chauffeurs.</p>
+        <div class="fruit-chips">${chips}</div>
+        ${count < 3 ? '<p style="font-size:12px;color:var(--bordeaux);margin-top:8px;">Nog niet genoeg chauffeurs voor deze uitwedstrijd.</p>' : ''}
+      `;
+    }
+
+    let begeleidersHtml = '';
+    if(match.location === 'thuis'){
+      const begeleiders = r.begeleiders || [];
+      const count = begeleiders.length;
+      const okClass = count >= 2 ? 'ok' : 'warn';
+      const chips = PLAYERS.map(name=>{
+        const active = begeleiders.includes(name) ? 'active' : '';
+        const pr = r.players[name] || {};
+        const suffix = pr.begeleiden === 'ja' ? ' ✓' : (pr.begeleiden === 'nee' ? ' ✕' : '');
+        return `<div class="fruit-chip driver-chip ${active}" onclick="toggleBegeleider('${match.id}','${name}')">${name}${suffix}</div>`;
+      }).join('');
+      begeleidersHtml = `
+        <div class="subhead">Spelbegeleiders aanwijzen <span class="driver-count ${okClass}">${count}/2</span></div>
+        <p style="font-size:12px;color:var(--grey);margin:0 0 8px;">✓ = heeft aangegeven te willen begeleiden, ✕ = kan niet. Kies minimaal 2 spelbegeleiders.</p>
+        <div class="fruit-chips">${chips}</div>
+        ${count < 2 ? '<p style="font-size:12px;color:var(--bordeaux);margin-top:8px;">Nog niet genoeg spelbegeleiders voor deze thuiswedstrijd.</p>' : ''}
+      `;
+    }
+
+    const veldInfo = match.veld ? ` · Veld ${match.veld}` : '';
+    const locAddr = (match.address ? ` · ${match.address}` : '') + veldInfo;
+
+    const gatherLine = match.location === 'uit'
+      ? 'Verzamelen: <strong>45 min voor de wedstrijd</strong> op de parkeerplaats naast de Trits. Uiterlijk 30 min voor aanvang op locatie.'
+      : 'Uiterlijk <strong>30 min voor aanvang</strong> op locatie aanwezig.';
+
+    const afwezigen = PLAYERS.filter(name => (r.players[name] || {}).komt === 'nee');
+
+    const announceHtml = `
+      <div class="announce-box">
+        <div class="announce-title">📣 Aankondiging — vs ${match.opponent}</div>
+        <div class="announce-row"><span class="tag ${match.location}">${match.location === 'thuis' ? 'Thuiswedstrijd' : 'Uitwedstrijd'}</span>${match.veld ? ' <span class="tag veld">Veld ' + match.veld + '</span>' : ''}</div>
+        ${afwezigen.length ? '<div class="announce-row warn">⚠️ Afwezig: ' + afwezigen.join(', ') + '.</div>' : ''}
+        ${match.witShirt ? '<div class="announce-row">👕 Neem een wit shirt mee in de tas' + (match.location === 'uit' ? ' (verplicht bij kleurconflict op uitwedstrijden)' : '') + '.</div>' : ''}
+        <div class="announce-row">🕒 ${gatherLine}</div>
+      </div>`;
+
+    return `
+      <div class="match-card ${isOpen?'open':''} ${isNext?'next':''}">
+        ${isNext ? '<div class="next-flag">Eerstvolgende wedstrijd</div>' : ''}
+        <div class="match-top" onclick="toggleMatch('${match.id}')">
+          <div class="date-badge"><div class="d">${d}</div><div class="m">${m}</div></div>
+          <div class="match-info">
+            <div class="opp">vs ${match.opponent}</div>
+            <div class="meta">${fmtDateLong(match.date)}${match.time ? ', '+match.time+'u' : ' · tijd nog niet bekend'}${locAddr}</div>
+          </div>
+          <div class="tag ${match.location}">${match.location === 'thuis' ? 'Thuis' : 'Uit'}</div>
+          <div class="chev">▾</div>
+        </div>
+        <div class="match-body">
+          ${rows}
+          <div class="subhead">Wie regelt fruit?</div>
+          <div class="fruit-chips">${fruitChips}</div>
+          ${chauffeursHtml}
+          ${begeleidersHtml}
+          ${!whoSel ? '<p style="font-size:12px;color:var(--grey);margin-top:10px;">Tip: kies bovenaan wie je bent, dan zie je straks sneller je eigen naam terug.</p>' : ''}
+          ${announceHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  renderAdmin();
+}
+
+function toggleMatch(id){
+  openMatchId = openMatchId === id ? null : id;
+  render();
+}
+
+async function setKomt(matchId, player, val){
+  const r = responses[matchId];
+  if(!r.players[player]) r.players[player] = {};
+  r.players[player].komt = (r.players[player].komt === val) ? null : val;
+  render();
+  try{ await saveResp(matchId); }catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+async function setRijden(matchId, player, val){
+  const r = responses[matchId];
+  if(!r.players[player]) r.players[player] = {};
+  r.players[player].rijden = (r.players[player].rijden === val) ? null : val;
+  render();
+  try{ await saveResp(matchId); }catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+async function setBegeleiden(matchId, player, val){
+  const r = responses[matchId];
+  if(!r.players[player]) r.players[player] = {};
+  r.players[player].begeleiden = (r.players[player].begeleiden === val) ? null : val;
+  render();
+  try{ await saveResp(matchId); }catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+async function setFruit(matchId, player){
+  const r = responses[matchId];
+  r.fruit = (r.fruit === player) ? null : player;
+  render();
+  try{ await saveResp(matchId); showToast(r.fruit ? r.fruit+' regelt het fruit' : 'Fruit-keuze verwijderd'); }
+  catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+async function toggleChauffeur(matchId, player){
+  const r = responses[matchId];
+  if(!r.chauffeurs) r.chauffeurs = [];
+  const idx = r.chauffeurs.indexOf(player);
+  if(idx === -1){
+    r.chauffeurs.push(player);
+  }else{
+    r.chauffeurs.splice(idx, 1);
+  }
+  render();
+  try{ await saveResp(matchId); }
+  catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+async function toggleBegeleider(matchId, player){
+  const r = responses[matchId];
+  if(!r.begeleiders) r.begeleiders = [];
+  const idx = r.begeleiders.indexOf(player);
+  if(idx === -1){
+    r.begeleiders.push(player);
+  }else{
+    r.begeleiders.splice(idx, 1);
+  }
+  render();
+  try{ await saveResp(matchId); }
+  catch(e){ showToast('Opslaan mislukt, probeer opnieuw'); }
+}
+
+function toggleAdmin(){
+  adminOpen = !adminOpen;
+  document.getElementById('adminPanel').style.display = adminOpen ? 'block' : 'none';
+  renderAdmin();
+}
+
+function renderAdmin(){
+  if(!adminOpen) return;
+  const panel = document.getElementById('adminPanel');
+  const editing = editingMatchId ? matches.find(m=>m.id === editingMatchId) : null;
+
+  const existing = sortedMatches().map(m=>{
+    const witShirtActive = m.witShirt ? 'active' : '';
+    const isBeingEdited = m.id === editingMatchId;
+    return `
+      <div class="existing-match ${isBeingEdited ? 'editing' : ''}">
+        <div class="em-info">${fmtDateLong(m.date)}${m.time?', '+m.time+'u':' · tijd nog niet bekend'} — vs ${m.opponent} (${m.location})${m.veld ? ', veld '+m.veld : ''}</div>
+      </div>
+      <div class="existing-match-flags">
+        <div class="flag-toggle ${witShirtActive}" onclick="toggleMatchFlag('${m.id}','witShirt')">Wit shirt</div>
+        <button class="edit-btn" onclick="startEditMatch('${m.id}')">Bewerken</button>
+        <button class="del-btn" onclick="deleteMatch('${m.id}')">Verwijder</button>
+      </div>`;
+  }).join('') || '<p style="font-size:13px;color:var(--grey);">Nog geen wedstrijden.</p>';
+
+  const f = editing || { date:'', time:'', opponent:'', location:'thuis', veld:'', address:'', witShirt:true };
+
+  panel.innerHTML = `
+    <h3>${editing ? 'Wedstrijd bewerken — vs ' + editing.opponent : 'Wedstrijd toevoegen'}</h3>
+    <div class="form-row">
+      <label>Datum</label>
+      <input type="date" id="f-date" value="${f.date}">
+    </div>
+    <div class="form-row">
+      <label>Tijd</label>
+      <input type="time" id="f-time" value="${f.time}">
+    </div>
+    <div class="form-row">
+      <label>Tegenstander</label>
+      <input type="text" id="f-opponent" placeholder="Bijv. Kampong MO8-3" value="${f.opponent}">
+    </div>
+    <div class="form-row">
+      <label>Thuis of uit</label>
+      <select id="f-location">
+        <option value="thuis" ${f.location==='thuis'?'selected':''}>Thuis</option>
+        <option value="uit" ${f.location==='uit'?'selected':''}>Uit</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Veld (van hockeystanden.nl, indien bekend)</label>
+      <input type="text" id="f-veld" placeholder="Bijv. 2" value="${f.veld}">
+    </div>
+    <div class="form-row">
+      <label>Adres / locatie (optioneel, handig bij uitwedstrijden)</label>
+      <input type="text" id="f-address" placeholder="Bijv. Sportpark X, Plaats" value="${f.address}">
+    </div>
+    <div class="form-row checkbox-row">
+      <label><input type="checkbox" id="f-witshirt" ${f.witShirt?'checked':''}> Wit shirt meenemen vermelden</label>
+    </div>
+    <button class="btn-primary" onclick="saveMatchForm()">${editing ? 'Wijzigingen opslaan' : 'Wedstrijd toevoegen'}</button>
+    ${editing ? '<button class="link-btn" style="width:100%;margin-top:4px;" onclick="cancelEditMatch()">Annuleren</button>' : ''}
+    <h3 style="margin-top:20px;">Bestaande wedstrijden</h3>
+    <p style="font-size:12px;color:var(--grey);margin:0 0 4px;">"Afwezig" in de aankondiging wordt automatisch bepaald uit wie "Nee" heeft aangegeven bij Komt — daar hoef je hier niets voor te doen.</p>
+    ${existing}
+  `;
+}
+
+function startEditMatch(id){
+  editingMatchId = id;
+  renderAdmin();
+}
+
+function cancelEditMatch(){
+  editingMatchId = null;
+  renderAdmin();
+}
+
+async function saveMatchForm(){
+  const date = document.getElementById('f-date').value;
+  const time = document.getElementById('f-time').value;
+  const opponent = document.getElementById('f-opponent').value.trim();
+  const location = document.getElementById('f-location').value;
+  const veld = document.getElementById('f-veld').value.trim();
+  const address = document.getElementById('f-address').value.trim();
+  const witShirt = document.getElementById('f-witshirt').checked;
+
+  if(!date || !opponent){
+    showToast('Vul minstens datum en tegenstander in');
+    return;
+  }
+
+  if(editingMatchId){
+    const m = matches.find(x=>x.id === editingMatchId);
+    if(m){
+      Object.assign(m, { date, time, opponent, location, veld, address, witShirt });
+    }
+    editingMatchId = null;
+    try{
+      await saveMatches();
+      showToast('Wedstrijd bijgewerkt');
+    }catch(e){
+      showToast('Opslaan mislukt, probeer opnieuw');
+    }
+  }else{
+    const id = 'm' + Date.now();
+    matches.push({ id, date, time, opponent, location, address, veld, witShirt });
+    responses[id] = defaultResp();
+    try{
+      await saveMatches();
+      showToast('Wedstrijd toegevoegd');
+    }catch(e){
+      showToast('Opslaan mislukt, probeer opnieuw');
+    }
+  }
+  render();
+}
+
+async function toggleMatchFlag(matchId, flag){
+  const m = matches.find(x=>x.id === matchId);
+  if(!m) return;
+  m[flag] = !m[flag];
+  try{
+    await saveMatches();
+  }catch(e){
+    showToast('Opslaan mislukt, probeer opnieuw');
+  }
+  render();
+}
+
+async function deleteMatch(id){
+  matches = matches.filter(m=>m.id !== id);
+  delete responses[id];
+  if(editingMatchId === id) editingMatchId = null;
+  try{
+    await saveMatches();
+    await apiDelete('resp:'+id);
+    showToast('Wedstrijd verwijderd');
+  }catch(e){
+    showToast('Verwijderen mislukt');
+  }
+  render();
+}
+
+loadAll();
+
+if(SCRIPT_URL === 'PLAK_HIER_JE_WEB_APP_URL'){
+  document.getElementById('content').innerHTML =
+    '<div class="empty">De koppeling met het opslag-blad is nog niet ingesteld.<br>Vul de SCRIPT_URL in bovenaan het bestand (zie de setup-instructies) en open de pagina opnieuw.</div>';
+}
+</script>
+
+</body>
+</html>
