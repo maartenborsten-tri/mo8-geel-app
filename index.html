@@ -131,6 +131,11 @@
     color:var(--grey);
     margin:22px 2px 10px;
   }
+  .section-title.played-title{
+    margin-top:34px;
+    padding-top:18px;
+    border-top:1px dashed var(--line);
+  }
   .match-card{
     background:white;
     border-radius:16px;
@@ -694,8 +699,11 @@ function render(){
   }
   const nextId = nextMatchId();
   const whoSel = document.getElementById('whoSelect').value;
+  const today = todayISO();
+  const firstPlayedIndex = list.findIndex(m => m.date < today);
 
-  el.innerHTML = '<div class="section-title">Wedstrijden</div>' + list.map(match=>{
+  el.innerHTML = '<div class="section-title">Wedstrijden</div>' + list.map((match, idx)=>{
+    const sectionHeader = (idx === firstPlayedIndex) ? '<div class="section-title played-title">🏁 Gespeeld</div>' : '';
     const isOpen = openMatchId === match.id;
     const isNext = match.id === nextId;
     const r = responses[match.id] || defaultResp();
@@ -851,6 +859,7 @@ function render(){
       </div>`;
 
     return `
+      ${sectionHeader}
       <div class="match-card ${isOpen?'open':''} ${isNext?'next':''}">
         ${isNext ? '<div class="next-flag">Eerstvolgende wedstrijd</div>' : ''}
         <div class="match-top" onclick="toggleMatch('${match.id}')">
