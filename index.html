@@ -188,6 +188,9 @@
   .tag.thuis{background:#e7f0e4; color:#3c6b34;}
   .tag.uit{background:#f6e6e9; color:var(--bordeaux);}
   .tag.veld{background:#e7edf6; color:var(--blue);}
+  .tag.result-win{background:#e7f0e4; color:#3c6b34; font-weight:700;}
+  .tag.result-loss{background:#f6e6e9; color:var(--bordeaux); font-weight:700;}
+  .tag.result-draw{background:#eee9dd; color:var(--grey); font-weight:700;}
   .chev{flex:none; color:var(--grey); font-size:13px; transition:transform 0.15s;}
   .match-card.open .chev{transform:rotate(180deg);}
   .next-flag{
@@ -507,6 +510,7 @@
 
 <script>
 const PLAYERS = ["Caroline","Amber","Kiki","Charlotte","Sophia","Fiep","Jolie","Jasmijn"];
+const OWN_TEAM = "Baarn MO8-Geel";
 const MAANDEN = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
 
 let matches = [];
@@ -518,16 +522,25 @@ let editingMatchId = null;
 // Officiële programma van hockeystanden.nl (Poule N), opgehaald 28-8-2026.
 // Wordt alleen gebruikt om de lijst eenmalig te vullen als er nog geen wedstrijden zijn opgeslagen.
 const SEED_MATCHES = [
-  { id:'seed1', date:'2026-09-05', time:'09:30', opponent:'Hilversum MO8-Turquoise', location:'uit', address:'', veld:'2', witShirt:true },
-  { id:'seed2', date:'2026-09-12', time:'', opponent:'Soest MO8-Oranje', location:'thuis', address:'', veld:'', witShirt:true },
-  { id:'seed3', date:'2026-09-19', time:'', opponent:'Eemvallei MO8-Blauw', location:'thuis', address:'', veld:'', witShirt:true },
-  { id:'seed4', date:'2026-09-26', time:'', opponent:'Laren MO8-Roze', location:'uit', address:'', veld:'', witShirt:true },
-  { id:'seed5', date:'2026-10-03', time:'', opponent:'Spandersbosch MO8-Blauw', location:'thuis', address:'', veld:'', witShirt:true }
+  { id:'seed1', date:'2026-09-05', time:'09:30', opponent:'Hilversum MO8-Turquoise', location:'uit', address:"Sportpark Loosdrecht (Hilversum), 't Jagerspaadje 24, Loosdrecht", veld:'2', witShirt:true, ownScore:'', oppScore:'' },
+  { id:'seed2', date:'2026-09-12', time:'09:00', opponent:'Soest MO8-Oranje', location:'thuis', address:"Sportpark 'Ter Eem' (Baarn), De Geerenweg 10, Baarn", veld:'4', witShirt:true, ownScore:'', oppScore:'' },
+  { id:'seed3', date:'2026-09-19', time:'09:30', opponent:'Eemvallei MO8-Blauw', location:'thuis', address:"Sportpark 'Ter Eem' (Baarn), De Geerenweg 10, Baarn", veld:'4', witShirt:true, ownScore:'', oppScore:'' },
+  { id:'seed4', date:'2026-09-26', time:'', opponent:'Laren MO8-Roze', location:'uit', address:'Sportpark Eemnesserweg, Eemnesserweg 33, Laren', veld:'', witShirt:true, ownScore:'', oppScore:'' },
+  { id:'seed5', date:'2026-10-03', time:'', opponent:'Spandersbosch MO8-Blauw', location:'thuis', address:"Sportpark 'Ter Eem' (Baarn), De Geerenweg 10, Baarn", veld:'', witShirt:true, ownScore:'', oppScore:'' }
 ];
 
 function todayISO(){
   const d = new Date();
   return d.toISOString().slice(0,10);
+}
+
+function subtractMinutes(timeStr, mins){
+  const [h, m] = timeStr.split(':').map(Number);
+  let total = h * 60 + m - mins;
+  if (total < 0) total += 24 * 60;
+  const hh = Math.floor(total / 60).toString().padStart(2, '0');
+  const mm = (total % 60).toString().padStart(2, '0');
+  return hh + ':' + mm;
 }
 
 function showToast(msg){
@@ -545,7 +558,7 @@ function defaultResp(){
 // Vul hieronder de URL in die je krijgt na het implementeren van de
 // Apps Script (zie instructies die je apart hebt gekregen). Zonder deze URL
 // kan de app niet opslaan.
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTIyvPnKcW4l-DRN0e0Z2VDUwwcyBCilAVXr-dNUtIwFtvLsIUMa4f4lGwTR0pvTTt/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKjzB3_WgypCvqclbTEE6G221mXFSLWEhk6X2GjFeZDqPo5lkm9-d5FiIC0HkpCcfaAA/exec';
 
 async function apiGet(key){
   const res = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(key));
@@ -595,6 +608,8 @@ async function loadAll(){
   matches.forEach(m=>{
     if(typeof m.witShirt !== 'boolean') m.witShirt = true;
     if(typeof m.veld !== 'string') m.veld = '';
+    if(typeof m.ownScore !== 'string') m.ownScore = '';
+    if(typeof m.oppScore !== 'string') m.oppScore = '';
   });
   responses = {};
   await Promise.all(matches.map(async (match)=>{
@@ -650,6 +665,19 @@ function sortedMatches(){
   return [...matches].sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
 }
 
+// Voor de weergave aan ouders: aankomende wedstrijden altijd bovenaan
+// (dichtstbijzijnde eerst), gespeelde wedstrijden onderaan (meest recente
+// eerst binnen die groep). sortedMatches() blijft puur chronologisch en
+// wordt nog gebruikt voor het beheerpaneel en het bepalen van de eerstvolgende.
+function displayMatches(){
+  const today = todayISO();
+  const upcoming = matches.filter(m=>m.date >= today)
+    .sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  const played = matches.filter(m=>m.date < today)
+    .sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
+  return [...upcoming, ...played];
+}
+
 function nextMatchId(){
   const today = todayISO();
   const upcoming = sortedMatches().filter(m=>m.date >= today);
@@ -658,7 +686,7 @@ function nextMatchId(){
 
 function render(){
   const el = document.getElementById('content');
-  const list = sortedMatches();
+  const list = displayMatches();
   if(list.length === 0){
     el.innerHTML = '<div class="empty">Nog geen wedstrijden toegevoegd.<br>Gebruik "Wedstrijden beheren" hieronder om de eerste wedstrijd toe te voegen.</div>';
     renderAdmin();
@@ -766,19 +794,60 @@ function render(){
     const veldInfo = match.veld ? ` · Veld ${match.veld}` : '';
     const locAddr = (match.address ? ` · ${match.address}` : '') + veldInfo;
 
-    const gatherLine = match.location === 'uit'
-      ? 'Verzamelen: <strong>45 min voor de wedstrijd</strong> op de parkeerplaats naast de Trits. Uiterlijk 30 min voor aanvang op locatie.'
-      : 'Uiterlijk <strong>30 min voor aanvang</strong> op locatie aanwezig.';
+    let gatherLine;
+    if (match.location === 'uit') {
+      if (match.time) {
+        const gatherTime = subtractMinutes(match.time, 60);
+        const arriveTime = subtractMinutes(match.time, 30);
+        gatherLine = `Verzamelen om <strong>${gatherTime} uur</strong> op de parkeerplaats naast de Trits. Uiterlijk om <strong>${arriveTime} uur</strong> op locatie aanwezig.`;
+      } else {
+        gatherLine = 'Verzamelen 60 minuten voor de wedstrijd op de parkeerplaats naast de Trits, uiterlijk 30 minuten voor aanvang op locatie (exacte tijd volgt zodra de starttijd bekend is).';
+      }
+    } else {
+      if (match.time) {
+        const arriveTime = subtractMinutes(match.time, 30);
+        gatherLine = `Uiterlijk om <strong>${arriveTime} uur</strong> op locatie aanwezig.`;
+      } else {
+        gatherLine = 'Uiterlijk 30 minuten voor aanvang op locatie aanwezig (exacte tijd volgt zodra de starttijd bekend is).';
+      }
+    }
 
     const afwezigen = PLAYERS.filter(name => (r.players[name] || {}).komt === 'nee');
 
+    const isPlayed = match.ownScore !== '' && match.oppScore !== '';
+    let resultBadgeHtml = '';
+    let resultLine = '';
+    if (isPlayed) {
+      const os = Number(match.ownScore), ps = Number(match.oppScore);
+      const outcome = os > ps ? 'win' : (os < ps ? 'loss' : 'draw');
+      const label = outcome === 'win' ? 'Gewonnen' : (outcome === 'loss' ? 'Verloren' : 'Gelijkspel');
+      resultBadgeHtml = `<div class="tag result-${outcome}">${label} ${os}-${ps}</div>`;
+      resultLine = `<div class="announce-row"><strong>${label} ${os}-${ps}</strong></div>`;
+    }
+
+    const chauffeurNames = (r.chauffeurs || []);
+    const begeleiderNames = (r.begeleiders || []);
+
+    const chauffeursLine = match.location === 'uit'
+      ? `<div class="announce-row">🚗 Chauffeurs: ${chauffeurNames.length ? chauffeurNames.join(', ') : 'nog niet aangewezen'}.</div>`
+      : '';
+    const begeleidersLine = match.location === 'thuis'
+      ? `<div class="announce-row">🧑‍🏫 Spelbegeleiders: ${begeleiderNames.length ? begeleiderNames.join(', ') : 'nog niet aangewezen'}.</div>`
+      : '';
+    const fruitLine = `<div class="announce-row">🍎 Fruit: ${r.fruit ? r.fruit : 'nog niet aangewezen'}.</div>`;
+
     const announceHtml = `
       <div class="announce-box">
-        <div class="announce-title">📣 Aankondiging — vs ${match.opponent}</div>
+        <div class="announce-title">📣 Aankondiging — ${match.location === 'thuis' ? OWN_TEAM + ' vs ' + match.opponent : match.opponent + ' vs ' + OWN_TEAM}</div>
         <div class="announce-row"><span class="tag ${match.location}">${match.location === 'thuis' ? 'Thuiswedstrijd' : 'Uitwedstrijd'}</span>${match.veld ? ' <span class="tag veld">Veld ' + match.veld + '</span>' : ''}</div>
+        ${match.address ? '<div class="announce-row">📍 ' + match.address + '</div>' : ''}
+        ${resultLine}
         ${afwezigen.length ? '<div class="announce-row warn">⚠️ Afwezig: ' + afwezigen.join(', ') + '.</div>' : ''}
         ${match.witShirt ? '<div class="announce-row">👕 Neem een wit shirt mee in de tas' + (match.location === 'uit' ? ' (verplicht bij kleurconflict op uitwedstrijden)' : '') + '.</div>' : ''}
         <div class="announce-row">🕒 ${gatherLine}</div>
+        ${chauffeursLine}
+        ${begeleidersLine}
+        ${fruitLine}
       </div>`;
 
     return `
@@ -787,10 +856,10 @@ function render(){
         <div class="match-top" onclick="toggleMatch('${match.id}')">
           <div class="date-badge"><div class="d">${d}</div><div class="m">${m}</div></div>
           <div class="match-info">
-            <div class="opp">vs ${match.opponent}</div>
+            <div class="opp">${match.location === 'thuis' ? OWN_TEAM + ' vs ' + match.opponent : match.opponent + ' vs ' + OWN_TEAM}</div>
             <div class="meta">${fmtDateLong(match.date)}${match.time ? ', '+match.time+'u' : ' · tijd nog niet bekend'}${locAddr}</div>
           </div>
-          <div class="tag ${match.location}">${match.location === 'thuis' ? 'Thuis' : 'Uit'}</div>
+          ${isPlayed ? resultBadgeHtml : '<div class="tag ' + match.location + '">' + (match.location === 'thuis' ? 'Thuis' : 'Uit') + '</div>'}
           <div class="chev">▾</div>
         </div>
         <div class="match-body">
@@ -887,9 +956,10 @@ function renderAdmin(){
   const existing = sortedMatches().map(m=>{
     const witShirtActive = m.witShirt ? 'active' : '';
     const isBeingEdited = m.id === editingMatchId;
+    const scoreInfo = (m.ownScore !== '' && m.oppScore !== '') ? ` — ${m.ownScore}-${m.oppScore}` : '';
     return `
       <div class="existing-match ${isBeingEdited ? 'editing' : ''}">
-        <div class="em-info">${fmtDateLong(m.date)}${m.time?', '+m.time+'u':' · tijd nog niet bekend'} — vs ${m.opponent} (${m.location})${m.veld ? ', veld '+m.veld : ''}</div>
+        <div class="em-info">${fmtDateLong(m.date)}${m.time?', '+m.time+'u':' · tijd nog niet bekend'} — vs ${m.opponent} (${m.location})${m.veld ? ', veld '+m.veld : ''}${scoreInfo}</div>
       </div>
       <div class="existing-match-flags">
         <div class="flag-toggle ${witShirtActive}" onclick="toggleMatchFlag('${m.id}','witShirt')">Wit shirt</div>
@@ -898,7 +968,7 @@ function renderAdmin(){
       </div>`;
   }).join('') || '<p style="font-size:13px;color:var(--grey);">Nog geen wedstrijden.</p>';
 
-  const f = editing || { date:'', time:'', opponent:'', location:'thuis', veld:'', address:'', witShirt:true };
+  const f = editing || { date:'', time:'', opponent:'', location:'thuis', veld:'', address:'', witShirt:true, ownScore:'', oppScore:'' };
 
   panel.innerHTML = `
     <h3>${editing ? 'Wedstrijd bewerken — vs ' + editing.opponent : 'Wedstrijd toevoegen'}</h3>
@@ -932,6 +1002,14 @@ function renderAdmin(){
     <div class="form-row checkbox-row">
       <label><input type="checkbox" id="f-witshirt" ${f.witShirt?'checked':''}> Wit shirt meenemen vermelden</label>
     </div>
+    <div class="form-row">
+      <label>Uitslag (invullen zodra gespeeld — leeg laten tot dan)</label>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <input type="number" min="0" id="f-ownscore" placeholder="Baarn" value="${f.ownScore}" style="text-align:center;">
+        <span style="color:var(--grey);">–</span>
+        <input type="number" min="0" id="f-oppscore" placeholder="Tegenstander" value="${f.oppScore}" style="text-align:center;">
+      </div>
+    </div>
     <button class="btn-primary" onclick="saveMatchForm()">${editing ? 'Wijzigingen opslaan' : 'Wedstrijd toevoegen'}</button>
     ${editing ? '<button class="link-btn" style="width:100%;margin-top:4px;" onclick="cancelEditMatch()">Annuleren</button>' : ''}
     <h3 style="margin-top:20px;">Bestaande wedstrijden</h3>
@@ -958,6 +1036,8 @@ async function saveMatchForm(){
   const veld = document.getElementById('f-veld').value.trim();
   const address = document.getElementById('f-address').value.trim();
   const witShirt = document.getElementById('f-witshirt').checked;
+  const ownScore = document.getElementById('f-ownscore').value.trim();
+  const oppScore = document.getElementById('f-oppscore').value.trim();
 
   if(!date || !opponent){
     showToast('Vul minstens datum en tegenstander in');
@@ -967,7 +1047,7 @@ async function saveMatchForm(){
   if(editingMatchId){
     const m = matches.find(x=>x.id === editingMatchId);
     if(m){
-      Object.assign(m, { date, time, opponent, location, veld, address, witShirt });
+      Object.assign(m, { date, time, opponent, location, veld, address, witShirt, ownScore, oppScore });
     }
     editingMatchId = null;
     try{
@@ -978,7 +1058,7 @@ async function saveMatchForm(){
     }
   }else{
     const id = 'm' + Date.now();
-    matches.push({ id, date, time, opponent, location, address, veld, witShirt });
+    matches.push({ id, date, time, opponent, location, address, veld, witShirt, ownScore, oppScore });
     responses[id] = defaultResp();
     try{
       await saveMatches();
