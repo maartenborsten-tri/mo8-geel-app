@@ -600,36 +600,87 @@ async function apiDelete(key){
 
 async function loadAll(){
   let hadNoMatches = false;
+  let loadFailed = false;
+
+  // Nieuwe, snelle opzet: matches + alle antwoorden samen in één sleutel
+  // ('appdata'), zodat een normale laadbeurt maar 1 netwerkverzoek naar
+  // Apps Script kost in plaats van 1 + N (1 per wedstrijd).
+  let appData = null;
   try{
-    const v = await apiGet('matches');
-    matches = v ? JSON.parse(v) : [];
+    const v = await apiGet('appdata');
+    appData = (v !== null) ? JSON.parse(v) : { __empty: true };
   }catch(e){
-    matches = [];
+    loadFailed = true;
   }
-  if(matches.length === 0){
-    matches = SEED_MATCHES.map(m=>({...m}));
-    hadNoMatches = true;
+
+  if(loadFailed){
+    // Belangrijk: bij een mislukte ophaalpoging NOOIT aannemen dat de Sheet
+    // leeg is en NOOIT iets terugschrijven — dat overschreef eerder per
+    // ongeluk al juist ingevulde tijden/adressen bij een tijdelijke hik
+    // (bijv. als de wekelijkse hockeystanden-check net op hetzelfde moment
+    // in dezelfde Sheet werkte). We tonen een foutmelding en stoppen.
+    document.getElementById('content').innerHTML =
+      '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.</div>';
+    return;
   }
+
+  if(appData && !appData.__empty && appData.matches){
+    // Snelle pad: alles zat al in de nieuwe, samengevoegde vorm.
+    matches = appData.matches;
+    responses = appData.responses || {};
+  }else{
+    // Eenmalig migratiepad vanuit de oude opzet (losse 'matches' +
+    // 'resp:<id>'-sleutels per wedstrijd). Hierna slaan we alles voortaan
+    // samengevoegd op, dus dit pad wordt maar één keer doorlopen.
+    let matchesLoadFailed = false;
+    try{
+      const v = await apiGet('matches');
+      if(v === null){
+        matches = SEED_MATCHES.map(m=>({...m}));
+        hadNoMatches = true;
+      }else{
+        matches = JSON.parse(v);
+      }
+    }catch(e){
+      matchesLoadFailed = true;
+    }
+
+    if(matchesLoadFailed){
+      // Zelfde veiligheidsprincipe: bij twijfel niets overschrijven.
+      document.getElementById('content').innerHTML =
+        '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.</div>';
+      return;
+    }
+
+    responses = {};
+    await Promise.all(matches.map(async (match)=>{
+      try{
+        const v = await apiGet('resp:'+match.id);
+        responses[match.id] = v ? JSON.parse(v) : defaultResp();
+      }catch(e){
+        responses[match.id] = defaultResp();
+      }
+    }));
+  }
+
   matches.forEach(m=>{
     if(typeof m.witShirt !== 'boolean') m.witShirt = true;
     if(typeof m.veld !== 'string') m.veld = '';
     if(typeof m.ownScore !== 'string') m.ownScore = '';
     if(typeof m.oppScore !== 'string') m.oppScore = '';
   });
-  responses = {};
-  await Promise.all(matches.map(async (match)=>{
-    try{
-      const v = await apiGet('resp:'+match.id);
-      responses[match.id] = v ? JSON.parse(v) : defaultResp();
-      if(!responses[match.id].chauffeurs) responses[match.id].chauffeurs = [];
-      if(!responses[match.id].begeleiders) responses[match.id].begeleiders = [];
-    }catch(e){
-      responses[match.id] = defaultResp();
-    }
-  }));
+  matches.forEach(m=>{
+    if(!responses[m.id]) responses[m.id] = defaultResp();
+    if(!responses[m.id].chauffeurs) responses[m.id].chauffeurs = [];
+    if(!responses[m.id].begeleiders) responses[m.id].begeleiders = [];
+  });
 
-  if(hadNoMatches){
-    try{ await saveMatches(); }catch(e){ /* volgende lezer probeert het opnieuw */ }
+  const tookFastPath = !!(appData && !appData.__empty && appData.matches);
+  if(!tookFastPath){
+    // Nieuw geseed óf gemigreerd vanuit de oude opzet — dit is precies het
+    // moment om het eenmalig samengevoegd terug te schrijven, zodat de
+    // volgende laadbeurt meteen het snelle pad kan nemen.
+    try{ await saveAll(); }catch(e){ /* niet erg, probeert het gewoon nog een keer bij de volgende load */ }
   }
   populateWhoSelect();
   render();
@@ -647,12 +698,16 @@ function onWhoChange(){
   render();
 }
 
+async function saveAll(){
+  await apiSet('appdata', JSON.stringify({ matches, responses }));
+}
+
 async function saveMatches(){
-  await apiSet('matches', JSON.stringify(matches));
+  await saveAll();
 }
 
 async function saveResp(matchId){
-  await apiSet('resp:'+matchId, JSON.stringify(responses[matchId]));
+  await saveAll();
 }
 
 function fmtDate(iso){
@@ -1096,8 +1151,7 @@ async function deleteMatch(id){
   delete responses[id];
   if(editingMatchId === id) editingMatchId = null;
   try{
-    await saveMatches();
-    await apiDelete('resp:'+id);
+    await saveAll();
     showToast('Wedstrijd verwijderd');
   }catch(e){
     showToast('Verwijderen mislukt');
