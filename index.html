@@ -653,14 +653,14 @@ async function loadAll(){
     }
 
     responses = {};
-    await Promise.all(matches.map(async (match)=>{
+    for (const match of matches) {
       try{
         const v = await apiGet('resp:'+match.id);
         responses[match.id] = v ? JSON.parse(v) : defaultResp();
       }catch(e){
         responses[match.id] = defaultResp();
       }
-    }));
+    }
   }
 
   matches.forEach(m=>{
