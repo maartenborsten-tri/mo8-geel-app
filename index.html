@@ -569,6 +569,7 @@ async function apiGet(key){
   const res = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(key));
   if(!res.ok) throw new Error('Netwerkfout bij ophalen');
   const data = await res.json();
+  if(data && data.error) throw new Error(data.error);
   return (data && data.value) ? data.value : null;
 }
 
