@@ -520,6 +520,7 @@ const MAANDEN = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","no
 
 let matches = [];
 let responses = {};
+let weatherData = {};
 let openMatchId = null;
 let adminOpen = false;
 let editingMatchId = null;
@@ -573,6 +574,18 @@ async function apiGet(key){
   return (data && data.value) ? data.value : null;
 }
 
+// Haalt in ÉÉN verzoek alle opgeslagen cellen op (match:<id>, resp:<id>,
+// weather:<id>, en eventuele oudere sleutels voor de migratie). Dit houdt
+// een normale laadbeurt op 1 netwerkverzoek, ook nu elke wedstrijd en elk
+// antwoord in zijn eigen cel staat.
+async function apiGetAll(){
+  const res = await fetch(SCRIPT_URL + '?all=1');
+  if(!res.ok) throw new Error('Netwerkfout bij ophalen');
+  const data = await res.json();
+  if(data && data.error) throw new Error(data.error);
+  return (data && data.data) ? data.data : {};
+}
+
 async function apiSet(key, value){
   try{
     await fetch(SCRIPT_URL, {
@@ -600,67 +613,77 @@ async function apiDelete(key){
 }
 
 async function loadAll(){
-  let hadNoMatches = false;
-  let loadFailed = false;
-
-  // Nieuwe, snelle opzet: matches + alle antwoorden samen in één sleutel
-  // ('appdata'), zodat een normale laadbeurt maar 1 netwerkverzoek naar
-  // Apps Script kost in plaats van 1 + N (1 per wedstrijd).
-  let appData = null;
+  let raw;
   try{
-    const v = await apiGet('appdata');
-    appData = (v !== null) ? JSON.parse(v) : { __empty: true };
+    raw = await apiGetAll();
   }catch(e){
-    loadFailed = true;
-  }
-
-  if(loadFailed){
     // Belangrijk: bij een mislukte ophaalpoging NOOIT aannemen dat de Sheet
     // leeg is en NOOIT iets terugschrijven — dat overschreef eerder per
-    // ongeluk al juist ingevulde tijden/adressen bij een tijdelijke hik
-    // (bijv. als de wekelijkse hockeystanden-check net op hetzelfde moment
-    // in dezelfde Sheet werkte). We tonen een foutmelding en stoppen.
+    // ongeluk al juist ingevulde tijden/adressen/antwoorden bij een
+    // tijdelijke hik. We tonen een foutmelding en stoppen.
     document.getElementById('content').innerHTML =
       '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.</div>';
     return;
   }
 
-  if(appData && !appData.__empty && appData.matches){
-    // Snelle pad: alles zat al in de nieuwe, samengevoegde vorm.
-    matches = appData.matches;
-    responses = appData.responses || {};
-  }else{
-    // Eenmalig migratiepad vanuit de oude opzet (losse 'matches' +
-    // 'resp:<id>'-sleutels per wedstrijd). Hierna slaan we alles voortaan
-    // samengevoegd op, dus dit pad wordt maar één keer doorlopen.
-    let matchesLoadFailed = false;
-    try{
-      const v = await apiGet('matches');
-      if(v === null){
-        matches = SEED_MATCHES.map(m=>({...m}));
-        hadNoMatches = true;
-      }else{
-        matches = JSON.parse(v);
-      }
-    }catch(e){
-      matchesLoadFailed = true;
-    }
+  // Nieuwe opzet: elke wedstrijd staat in zijn eigen cel ('match:<id>') en
+  // elk antwoord in zijn eigen cel ('resp:<id>'). Daardoor raakt een save
+  // van de automatische hockeystanden-check, of van één ouder die een
+  // vakje aanklikt, nooit meer de data van iets anders aan — er is geen
+  // groot "alles"-object meer dat in zijn geheel overschreven kan worden.
+  matches = [];
+  responses = {};
+  weatherData = {};
+  let hasNewScheme = false;
 
-    if(matchesLoadFailed){
-      // Zelfde veiligheidsprincipe: bij twijfel niets overschrijven.
-      document.getElementById('content').innerHTML =
-        '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.</div>';
-      return;
-    }
-
-    responses = {};
-    for (const match of matches) {
+  Object.keys(raw).forEach(function(k){
+    if(k.indexOf('match:') === 0){
+      hasNewScheme = true;
       try{
-        const v = await apiGet('resp:'+match.id);
-        responses[match.id] = v ? JSON.parse(v) : defaultResp();
-      }catch(e){
-        responses[match.id] = defaultResp();
-      }
+        const m = JSON.parse(raw[k]);
+        m.id = k.slice(6);
+        matches.push(m);
+      }catch(e){ /* corrupte cel overslaan */ }
+    }
+  });
+  Object.keys(raw).forEach(function(k){
+    if(k.indexOf('resp:') === 0){
+      const id = k.slice(5);
+      try{ responses[id] = JSON.parse(raw[k]); }catch(e){ responses[id] = defaultResp(); }
+    }
+    if(k.indexOf('weather:') === 0){
+      const id = k.slice(8);
+      try{ weatherData[id] = JSON.parse(raw[k]); }catch(e){ /* negeren */ }
+    }
+  });
+
+  if(!hasNewScheme){
+    // Eenmalige migratie vanuit een oudere opzet: eerst proberen vanuit het
+    // samengevoegde 'appdata'-blok, anders vanuit de nog oudere losse
+    // 'matches'-sleutel. De 'resp:<id>'-cellen heetten in beide eerdere
+    // opzetten al precies zo, dus die zijn hierboven al gewoon meegelezen.
+    let legacyMatches = null;
+    if(raw['appdata']){
+      try{
+        const legacy = JSON.parse(raw['appdata']);
+        legacyMatches = legacy.matches || null;
+        const legacyResp = legacy.responses || {};
+        Object.keys(legacyResp).forEach(id=>{ if(!responses[id]) responses[id] = legacyResp[id]; });
+      }catch(e){ /* negeren, volgende terugval proberen */ }
+    }
+    if(!legacyMatches && raw['matches']){
+      try{ legacyMatches = JSON.parse(raw['matches']); }catch(e){ /* negeren */ }
+    }
+    if(!legacyMatches){
+      legacyMatches = SEED_MATCHES.map(m=>({...m}));
+    }
+    matches = legacyMatches;
+
+    // Schrijf elke wedstrijd nu eenmalig weg als eigen match:<id>-cel, zodat
+    // de volgende laadbeurt meteen de nieuwe, granulaire opzet gebruikt.
+    for (const m of matches) {
+      const { id, ...rest } = m;
+      try{ await apiSet('match:'+id, JSON.stringify(rest)); }catch(e){ /* probeert het gewoon nog een keer bij de volgende load */ }
     }
   }
 
@@ -676,13 +699,6 @@ async function loadAll(){
     if(!responses[m.id].begeleiders) responses[m.id].begeleiders = [];
   });
 
-  const tookFastPath = !!(appData && !appData.__empty && appData.matches);
-  if(!tookFastPath){
-    // Nieuw geseed óf gemigreerd vanuit de oude opzet — dit is precies het
-    // moment om het eenmalig samengevoegd terug te schrijven, zodat de
-    // volgende laadbeurt meteen het snelle pad kan nemen.
-    try{ await saveAll(); }catch(e){ /* niet erg, probeert het gewoon nog een keer bij de volgende load */ }
-  }
   populateWhoSelect();
   render();
 }
@@ -699,16 +715,20 @@ function onWhoChange(){
   render();
 }
 
-async function saveAll(){
-  await apiSet('appdata', JSON.stringify({ matches, responses }));
+// Slaat uitsluitend de gegevens van déze ene wedstrijd op (datum, tijd,
+// tegenstander, veld, adres, uitslag, wit-shirt-vlag) — raakt nooit de
+// antwoorden-cel van deze of een andere wedstrijd aan.
+async function saveMatch(matchId){
+  const m = matches.find(x=>x.id === matchId);
+  if(!m) return;
+  const { id, ...rest } = m;
+  await apiSet('match:'+matchId, JSON.stringify(rest));
 }
 
-async function saveMatches(){
-  await saveAll();
-}
-
+// Slaat uitsluitend de antwoorden van déze ene wedstrijd op — raakt nooit
+// de wedstrijdgegevens of de antwoorden van een andere wedstrijd aan.
 async function saveResp(matchId){
-  await saveAll();
+  await apiSet('resp:'+matchId, JSON.stringify(responses[matchId]));
 }
 
 function fmtDate(iso){
@@ -900,11 +920,20 @@ function render(){
       : '';
     const fruitLine = `<div class="announce-row">🍎 Fruit: ${r.fruit ? r.fruit : 'nog niet aangewezen'}.</div>`;
 
+    const wx = weatherData[match.id];
+    let weatherLine = '';
+    if(wx){
+      const stars = '⭐'.repeat(wx.stars) + '☆'.repeat(5 - wx.stars);
+      const emoji = wx.precipProb >= 50 ? '🌧️' : (wx.tempC <= 5 ? '🥶' : (wx.tempC >= 22 ? '☀️' : '⛅'));
+      weatherLine = `<div class="announce-row">${emoji} Weer: ${Math.round(wx.tempC)}°C, ${wx.precipProb}% kans op regen — ${stars} hockeyweer</div>`;
+    }
+
     const announceHtml = `
       <div class="announce-box">
         <div class="announce-title">📣 Aankondiging — ${match.location === 'thuis' ? OWN_TEAM + ' vs ' + match.opponent : match.opponent + ' vs ' + OWN_TEAM}</div>
         <div class="announce-row"><span class="tag ${match.location}">${match.location === 'thuis' ? 'Thuiswedstrijd' : 'Uitwedstrijd'}</span>${match.veld ? ' <span class="tag veld">Veld ' + match.veld + '</span>' : ''}</div>
         ${match.address ? '<div class="announce-row">📍 ' + match.address + '</div>' : ''}
+        ${weatherLine}
         ${resultLine}
         ${afwezigen.length ? '<div class="announce-row warn">⚠️ Afwezig: ' + afwezigen.join(', ') + '.</div>' : ''}
         ${match.witShirt ? '<div class="announce-row">👕 Neem een wit shirt mee in de tas' + (match.location === 'uit' ? ' (verplicht bij kleurconflict op uitwedstrijden)' : '') + '.</div>' : ''}
@@ -1110,13 +1139,14 @@ async function saveMatchForm(){
   }
 
   if(editingMatchId){
-    const m = matches.find(x=>x.id === editingMatchId);
+    const savingId = editingMatchId;
+    const m = matches.find(x=>x.id === savingId);
     if(m){
       Object.assign(m, { date, time, opponent, location, veld, address, witShirt, ownScore, oppScore });
     }
     editingMatchId = null;
     try{
-      await saveMatches();
+      await saveMatch(savingId);
       showToast('Wedstrijd bijgewerkt');
     }catch(e){
       showToast('Opslaan mislukt, probeer opnieuw');
@@ -1126,7 +1156,8 @@ async function saveMatchForm(){
     matches.push({ id, date, time, opponent, location, address, veld, witShirt, ownScore, oppScore });
     responses[id] = defaultResp();
     try{
-      await saveMatches();
+      await saveMatch(id);
+      await saveResp(id);
       showToast('Wedstrijd toegevoegd');
     }catch(e){
       showToast('Opslaan mislukt, probeer opnieuw');
@@ -1140,7 +1171,7 @@ async function toggleMatchFlag(matchId, flag){
   if(!m) return;
   m[flag] = !m[flag];
   try{
-    await saveMatches();
+    await saveMatch(matchId);
   }catch(e){
     showToast('Opslaan mislukt, probeer opnieuw');
   }
@@ -1150,9 +1181,12 @@ async function toggleMatchFlag(matchId, flag){
 async function deleteMatch(id){
   matches = matches.filter(m=>m.id !== id);
   delete responses[id];
+  delete weatherData[id];
   if(editingMatchId === id) editingMatchId = null;
   try{
-    await saveAll();
+    await apiDelete('match:'+id);
+    await apiDelete('resp:'+id);
+    await apiDelete('weather:'+id);
     showToast('Wedstrijd verwijderd');
   }catch(e){
     showToast('Verwijderen mislukt');
