@@ -946,8 +946,8 @@ function defaultResp(){
 // Vul hieronder de URL in die je krijgt na het implementeren van de
 // Apps Script (zie instructies die je apart hebt gekregen). Zonder deze URL
 // kan de app niet opslaan.
-const SCRIPT_URL = 'const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOJ5r8_zJdTo5gUmFPtHtMN8yfTkFWpdfV1VPscIPaPaEvUqNDOua94-xflyEnt4vp/exec';
-
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOJ5r8_zJdTo5gUmFPtHtMN8yfTkFWpdfV1VPscIPaPaEvUqNDOua94-xflyEnt4vp/exec';
+  
 async function apiGet(key){
   const res = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(key));
   if(!res.ok) throw new Error('Netwerkfout bij ophalen');
