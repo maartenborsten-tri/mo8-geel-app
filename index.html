@@ -7,7 +7,42 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-
+  .import-box{
+    border:1.5px solid var(--blue);
+    border-radius:12px;
+    padding:12px 12px 4px;
+    margin-bottom:22px;
+    background:var(--cream);
+  }
+  .import-box textarea{
+    width:100%;
+    padding:9px 10px;
+    border-radius:8px;
+    border:1.5px solid var(--line);
+    font-size:13px;
+    font-family:'Karla',sans-serif;
+    background:white;
+    margin-bottom:8px;
+  }
+  .import-day{
+    background:white;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 10px 4px;
+    margin-bottom:10px;
+    font-size:13.5px;
+  }
+  .import-day-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-weight:700;
+    margin-bottom:4px;
+  }
+  .import-day-head input{width:16px; height:16px; flex:none;}
+  .import-day .form-row{margin:8px 0;}
+  .import-note{font-size:12px; color:var(--grey); margin:0 0 10px;}
+  .import-warn{font-size:13px; color:var(--bordeaux); margin:0 0 10px;}
 .game-block{
   border:1.5px dashed var(--line);
   border-radius:10px;
@@ -532,7 +567,6 @@
 </div>
 
 <div id="toast" class="toast"></div>
-
 <script>
 const PLAYERS = ["Caroline","Amber","Kiki","Charlotte","Sophia","Fiep","Jolie","Jasmijn"];
 const OWN_TEAM = "Baarn MO8-Geel";
@@ -608,6 +642,261 @@ let formBasic = { date:'', location:'thuis', address:'', witShirt:true, indoor:f
 function resetForm(){
   formBasic = { date:'', location:'thuis', address:'', witShirt:true, indoor:false };
   formGames = [blankGame()];
+}
+
+// ── Programma importeren (plakken vanaf hockeystanden.nl) ──────────────────
+// hockeystanden.nl blokkeert automatisch ophalen (Cloudflare), dus de
+// automatische check in Apps Script kan er niet meer bij. In plaats daarvan
+// kopieer je in je eigen browser het programma van de teampagina en plak je
+// dat in het beheerpaneel; hieronder wordt de tekst omgezet naar speeldagen.
+const OWN_TEAM_RE = /Baarn\s+z?MO8[-\s]?Geel/i;
+const HOME_VELD_ADDRESS = "Sportpark 'Ter Eem' (Baarn), De Geerenweg 10, Baarn";
+const MON_ABBR = {jan:0,feb:1,mrt:2,apr:3,mei:4,jun:5,jul:6,aug:7,sep:8,okt:9,nov:10,dec:11};
+const MON_FULL = {januari:0,februari:1,maart:2,april:3,mei:4,juni:5,juli:6,augustus:7,september:8,oktober:9,november:10,december:11};
+const DATE_LINE_RE = /^(?:ma|di|wo|do|vr|za|zo)[a-z]*\.?,?\s+(\d{1,2})\s+(jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec)[a-z]*\.?/i;
+const HEADER_RE = /^(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)(?:\s+(\d{4}))?$/i;
+
+let importText = '';
+let importDays = [];
+let importInfo = null;
+
+function pad2_(n){ return String(n).padStart(2,'0'); }
+function escHtml_(s){
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function byTime_(a,b){ return (a.time||'').localeCompare(b.time||''); }
+
+// Zet geplakte tekst van de hockeystanden.nl-teampagina om naar speeldagen.
+// Werkt op de volgorde in de tekst: een regel met een datum ("zo 6 dec")
+// start een wedstrijd; alles tot de volgende datum hoort erbij (tijd,
+// teamnamen, veld). Al gespeelde wedstrijden (met uitslag) en datums in het
+// verleden worden overgeslagen.
+function parseProgramma_(text, todayStr){
+  const today = todayStr || todayISO();
+  const lines = String(text || '').split(/\r?\n/).map(s=>s.replace(/\t+/g,' ').trim()).filter(Boolean);
+  let year = parseInt(today.slice(0,4), 10);
+  let lastMonth = -1;
+  const segs = [];
+  let cur = null;
+
+  lines.forEach(line=>{
+    const h = line.match(HEADER_RE);
+    if(h){
+      const mo = MON_FULL[h[1].toLowerCase()];
+      if(h[2]) year = parseInt(h[2], 10);
+      else if(mo < lastMonth) year++;
+      lastMonth = mo;
+      cur = null;
+      return;
+    }
+    const d = line.match(DATE_LINE_RE);
+    if(d){
+      const mo = MON_ABBR[d[2].toLowerCase()];
+      if(mo < lastMonth) year++;
+      lastMonth = mo;
+      cur = { date: year + '-' + pad2_(mo+1) + '-' + pad2_(parseInt(d[1],10)), text: line.slice(d[0].length) };
+      segs.push(cur);
+      return;
+    }
+    if(cur) cur.text += ' ' + line;
+  });
+
+  const info = { skippedPlayed:0, skippedPast:0, unrecognized:0, segments: segs.length };
+  const found = [];
+  const isBadge = t=>/^[A-Z]{2,3}$/.test(t);
+  const isCat = t=>/^z?[MJ][OJA]?\d{1,2}/i.test(t);
+
+  segs.forEach(seg=>{
+    let s = ' ' + seg.text.replace(/\s+/g,' ') + ' ';
+
+    // Veld/baan en (bij zaal) de naam van de hal, bijv. "1. BLR-Bimon veld" of "Veld 2".
+    let veld = '', venue = '';
+    let vm = s.match(/(\d+)\.\s*([A-Za-z0-9][A-Za-z0-9 .'&\/-]*?)\s+veld\b/i);
+    if(vm){ veld = vm[1]; venue = vm[2].trim(); s = s.replace(vm[0], ' '); }
+    else{
+      vm = s.match(/\bveld\s*(\d+)\b/i);
+      if(vm){ veld = vm[1]; s = s.replace(vm[0], ' '); }
+    }
+
+    let time = '';
+    const tm = s.match(/(?:^|\s)(\d{1,2}):(\d{2})(?=\s|$)/);
+    if(tm){
+      time = pad2_(parseInt(tm[1],10)) + ':' + tm[2];
+      s = s.replace(tm[0], ' ');
+      if(time === '00:00') time = '';
+    }
+    const sm = s.match(/(?:^|\s)(\d{1,2})\s*[-–]\s*(\d{1,2})(?=\s|$)/);
+    if(!tm && sm){ info.skippedPlayed++; return; }
+    if(seg.date < today){ info.skippedPast++; return; }
+
+    s = s.replace(/\s+/g,' ').trim();
+    const om = s.match(OWN_TEAM_RE);
+    if(!om){ info.unrecognized++; return; }
+    const indoor = /Baarn\s+zMO8/i.test(om[0]);
+    let b = s.slice(0, om.index).trim().split(' ').filter(Boolean);
+    let a = s.slice(om.index + om[0].length).trim().split(' ').filter(Boolean);
+
+    // Eigen clubafkorting ("BA") naast de eigen teamnaam weghalen.
+    if(b.length && b[b.length-1] === 'BA') b.pop();
+    else if(a.length && a[0] === 'BA') a.shift();
+
+    let opponentTokens, location;
+    if(b.length){
+      location = 'uit';   // eigen team staat rechts: tegenstander is thuisploeg
+      if(b.length >= 2 && isBadge(b[b.length-1])) b.pop();
+      opponentTokens = b;
+    }else{
+      location = 'thuis';
+      if(a.length >= 2 && isBadge(a[0]) && !isCat(a[1])) a.shift();
+      opponentTokens = a;
+    }
+    const catIdx = opponentTokens.findIndex(isCat);
+    if(catIdx !== -1) opponentTokens = opponentTokens.slice(0, catIdx + 1);
+    const opponent = opponentTokens.join(' ').trim();
+    if(!opponent){ info.unrecognized++; return; }
+
+    found.push({ date: seg.date, indoor: indoor, location: location, venue: venue,
+      game: { time: time, opponent: opponent, veld: veld, ownScore: '', oppScore: '' } });
+  });
+
+  // Groeperen per speeldag (datum + zaal/veld), net als de oude automatische check.
+  const map = {};
+  const order = [];
+  found.forEach(f=>{
+    const k = f.date + '|' + (f.indoor ? 1 : 0);
+    if(!map[k]){
+      map[k] = { date: f.date, indoor: f.indoor, location: f.location, venue: f.venue, games: [] };
+      order.push(k);
+    }
+    const day = map[k];
+    if(!day.venue && f.venue) day.venue = f.venue;
+    if(!day.games.some(g=>g.opponent === f.game.opponent)) day.games.push(f.game);
+  });
+  const days = order.map(k=>{
+    const d = map[k];
+    d.games.sort(byTime_);
+    d.address = (d.location === 'thuis' && !d.indoor) ? HOME_VELD_ADDRESS : d.venue;
+    return d;
+  }).sort((x,y)=> x.date.localeCompare(y.date));
+
+  return { days: days, info: info };
+}
+
+function readImportFromDom(){
+  const t = document.getElementById('imp-text');
+  if(t) importText = t.value;
+  importDays.forEach((d,i)=>{
+    const a = document.getElementById('imp-addr-'+i);
+    if(a) d.address = a.value;
+    const c = document.getElementById('imp-sel-'+i);
+    if(c) d.selected = c.checked;
+  });
+}
+
+function parseImport(){
+  readImportFromDom();
+  const res = parseProgramma_(importText);
+  importDays = res.days.map(d=>Object.assign({ selected:true }, d));
+  importInfo = res.info;
+  renderAdmin();
+}
+
+function clearImport(){
+  importText = '';
+  importDays = [];
+  importInfo = null;
+  renderAdmin();
+}
+
+async function runImport(){
+  readImportFromDom();
+  const chosen = importDays.filter(d=>d.selected);
+  if(!chosen.length){ showToast('Niets geselecteerd'); return; }
+  let added = 0, updated = 0, failed = false;
+  for(let i = 0; i < chosen.length; i++){
+    const day = chosen[i];
+    const existing = matches.find(m=>m.date === day.date && !!m.indoor === !!day.indoor);
+    try{
+      if(existing){
+        let changed = false;
+        day.games.forEach(g=>{
+          const eg = existing.games.find(x=>x.opponent === g.opponent);
+          if(!eg){ existing.games.push(Object.assign({}, g)); changed = true; }
+          else{
+            if(g.time && eg.time !== g.time){ eg.time = g.time; changed = true; }
+            if(g.veld && eg.veld !== g.veld){ eg.veld = g.veld; changed = true; }
+          }
+        });
+        if(!existing.address && day.address){ existing.address = day.address; changed = true; }
+        if(changed){
+          existing.games.sort(byTime_);
+          await saveMatch(existing.id);
+          updated++;
+        }
+      }else{
+        const id = 'm' + Date.now() + '-' + i;
+        matches.push({
+          id: id, date: day.date, location: day.location, address: day.address || '',
+          witShirt: true, indoor: !!day.indoor,
+          games: day.games.map(g=>Object.assign({}, g))
+        });
+        responses[id] = defaultResp();
+        await saveMatch(id);
+        await saveResp(id);
+        added++;
+      }
+    }catch(e){ failed = true; }
+  }
+  importText = '';
+  importDays = [];
+  importInfo = null;
+  showToast(failed ? 'Importeren deels mislukt, controleer de lijst' : 'Geïmporteerd: ' + added + ' nieuw, ' + updated + ' bijgewerkt');
+  render();
+}
+
+function importSectionHtml_(){
+  let preview = '';
+  if(importInfo){
+    const notes = [];
+    if(importInfo.skippedPlayed) notes.push(importInfo.skippedPlayed + ' al gespeelde wedstrijd(en) overgeslagen');
+    if(importInfo.skippedPast) notes.push(importInfo.skippedPast + ' wedstrijd(en) in het verleden overgeslagen');
+    if(importInfo.unrecognized) notes.push(importInfo.unrecognized + ' wedstrijd(en) niet herkend (geen Baarn MO8-Geel / zMO8-Geel gevonden)');
+    if(importDays.length === 0){
+      preview = '<p class="import-warn">Geen aankomende wedstrijden herkend. Controleer of je het Programma-gedeelte van de teampagina hebt geplakt.' +
+        (notes.length ? '<br>' + notes.join('; ') + '.' : '') + '</p>';
+    }else{
+      preview = '<p class="import-note">Controleer onderstaande speeldagen. Bij uitwedstrijden is een volledig adres (straat + plaats) nodig voor de rijtijd; pas dat hieronder aan waar nodig.' +
+        (notes.length ? '<br>' + notes.join('; ') + '.' : '') + '</p>' +
+        importDays.map((d,i)=>{
+          const exists = matches.some(m=>m.date === d.date && !!m.indoor === !!d.indoor);
+          const gamesTxt = d.games.map(g=>'vs ' + escHtml_(g.opponent) + (g.time ? ' om ' + g.time + 'u' : ' (tijd n.b.)') + (g.veld ? ' · veld ' + escHtml_(g.veld) : '')).join('<br>');
+          return `
+            <div class="import-day">
+              <label class="import-day-head">
+                <input type="checkbox" id="imp-sel-${i}" ${d.selected ? 'checked' : ''}>
+                <span>${fmtDateLong(d.date)} · ${d.location === 'thuis' ? 'Thuis' : 'Uit'} · ${d.indoor ? 'Zaal' : 'Veld'}${exists ? ' · <em style="font-weight:400;color:var(--grey);">bestaat al, wordt aangevuld</em>' : ''}</span>
+              </label>
+              <div>${gamesTxt}</div>
+              <div class="form-row">
+                <label>Adres / locatie</label>
+                <input type="text" id="imp-addr-${i}" value="${escHtml_(d.address)}" placeholder="Straat + plaats">
+              </div>
+            </div>`;
+        }).join('') +
+        '<button class="btn-primary" style="margin-bottom:10px;" onclick="runImport()">Geselecteerde speeldagen importeren</button>';
+    }
+  }
+  return `
+    <div class="import-box">
+      <h3>Programma importeren</h3>
+      <p class="import-note">Open de teampagina op hockeystanden.nl in je browser, selecteer de wedstrijdlijst onder "Programma" (of de hele pagina), kopieer en plak hem hieronder.</p>
+      <textarea id="imp-text" rows="6" placeholder="Plak hier het programma…">${escHtml_(importText)}</textarea>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button type="button" class="edit-btn" onclick="parseImport()">Wedstrijden lezen</button>
+        ${(importText || importInfo) ? '<button type="button" class="del-btn" onclick="clearImport()">Wissen</button>' : ''}
+      </div>
+      ${preview}
+    </div>`;
 }
 
 // Officiële programma van hockeystanden.nl (Poule N), opgehaald 28-8-2026.
@@ -1172,6 +1461,7 @@ function toggleAdmin(){
 function renderAdmin(){
   if(!adminOpen) return;
   const panel = document.getElementById('adminPanel');
+  readImportFromDom(); // getypte/geplakte tekst bewaren bij herladen van het paneel
 
   const existing = sortedMatches().map(m=>{
     const witShirtActive = m.witShirt ? 'active' : '';
@@ -1220,7 +1510,7 @@ function renderAdmin(){
     </div>
   `).join('');
 
-  panel.innerHTML = `
+  panel.innerHTML = importSectionHtml_() + `
     <h3>${editingMatchId ? 'Wedstrijd(en) bewerken' : 'Wedstrijd toevoegen'}</h3>
     <div class="form-row">
       <label>Datum</label>
@@ -1389,11 +1679,25 @@ async function deleteMatch(id){
 
 loadAll();
 
+// Het beheer-knopje is voor de rest van de ouders niet direct zichtbaar: het
+// verschijnt pas als je de pagina een keer opent met #beheer achter de URL
+// (daarna onthoudt deze browser dat). Dit is geen beveiliging, alleen niet
+// in beeld voor wie het niet nodig heeft.
+(function(){
+  let show = location.hash === '#beheer';
+  try{
+    if(show) localStorage.setItem('mo8-beheer','1');
+    else if(localStorage.getItem('mo8-beheer') === '1') show = true;
+  }catch(e){ /* opslag niet beschikbaar: alleen #beheer werkt dan */ }
+  if(!show){
+    const w = document.querySelector('.admin-toggle');
+    if(w) w.style.display = 'none';
+  }
+  window.addEventListener('hashchange', function(){ location.reload(); });
+})();
+
 if(SCRIPT_URL === 'PLAK_HIER_JE_WEB_APP_URL'){
   document.getElementById('content').innerHTML =
     '<div class="empty">De koppeling met het opslag-blad is nog niet ingesteld.<br>Vul de SCRIPT_URL in bovenaan het bestand (zie de setup-instructies) en open de pagina opnieuw.</div>';
 }
 </script>
-
-</body>
-</html>
