@@ -742,8 +742,9 @@ function parseProgramma_(text, todayStr){
 
     let opponentTokens, location;
     if(b.length){
-      location = 'uit';   // eigen team staat rechts: tegenstander is thuisploeg
-      if(b.length >= 2 && isBadge(b[b.length-1])) b.pop();
+            location = 'uit';   // eigen team staat rechts: tegenstander is thuisploeg
+      if(b.length >= 2 && isBadge(b[0]) && !isCat(b[1])) b.shift();   // afkorting vóór de naam ("WO Woerden …")
+      if(b.length >= 2 && isBadge(b[b.length-1])) b.pop();            // afkorting ná de naam ("Woerden … WO")
       opponentTokens = b;
     }else{
       location = 'thuis';
@@ -960,7 +961,8 @@ async function apiGet(key){
 // een normale laadbeurt op 1 netwerkverzoek, ook nu elke wedstrijd en elk
 // antwoord in zijn eigen cel staat.
 async function apiGetAll(){
-  const res = await fetch(SCRIPT_URL + '?all=1');
+  // Cache-breker: voorkomt dat de browser een oude versie van de data hergebruikt.
+  const res = await fetch(SCRIPT_URL + '?all=1&_=' + Date.now(), { cache: 'no-store' });
   if(!res.ok) throw new Error('Netwerkfout bij ophalen');
   const data = await res.json();
   if(data && data.error) throw new Error(data.error);
@@ -1003,7 +1005,7 @@ async function loadAll(){
     // ongeluk al juist ingevulde tijden/adressen/antwoorden bij een
     // tijdelijke hik. We tonen een foutmelding en stoppen.
     document.getElementById('content').innerHTML =
-      '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.</div>';
+      '<div class="empty">Kon de wedstrijden niet ophalen (tijdelijk netwerkprobleem).<br>Ververs de pagina om het opnieuw te proberen — er is niets gewijzigd.<br><small>' + escHtml_(e && e.message ? e.message : e) + '</small></div>';
     return;
   }
 
