@@ -521,9 +521,74 @@ const MAANDEN = ["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","no
 let matches = [];
 let responses = {};
 let weatherData = {};
+let travelData = {};
 let openMatchId = null;
 let adminOpen = false;
 let editingMatchId = null;
+
+// Een "wedstrijd" kan uit meerdere achter-elkaar gespeelde partijen bestaan
+// (vooral bij zaalhockey, waar een team tijdens één speelronde meerdere
+// tegenstanders na elkaar treft). Daarom staat elke wedstrijd intern altijd
+// als { date, location, address, indoor, witShirt, games:[...] }, met één
+// entry in 'games' per tegenstander/tijdstip — maar met maar 1 keer
+// beschikbaarheid/fruit/chauffeurs voor de hele speeldag.
+function blankGame(){
+  return { time:'', opponent:'', veld:'', ownScore:'', oppScore:'' };
+}
+
+// Zet een wedstrijd die nog in de oude vorm staat (1 vast opponent/time/veld/
+// score-veld per match) om naar de nieuwe 'games'-opzet. Wedstrijden die al
+// in de nieuwe vorm staan, blijven ongewijzigd. Dit maakt oude, al
+// opgeslagen wedstrijden (en de SEED_MATCHES hieronder) automatisch
+// compatibel zonder dat er iets hoeft te migreren op het Sheet zelf.
+function migrateToGames_(m){
+  if(!Array.isArray(m.games)){
+    m.games = [{
+      time: m.time || '',
+      opponent: m.opponent || '',
+      veld: m.veld || '',
+      ownScore: typeof m.ownScore === 'string' ? m.ownScore : '',
+      oppScore: typeof m.oppScore === 'string' ? m.oppScore : ''
+    }];
+  }
+  delete m.time;
+  delete m.opponent;
+  delete m.ownScore;
+  delete m.oppScore;
+  delete m.veld;
+  m.games.forEach(g=>{
+    if(typeof g.time !== 'string') g.time = '';
+    if(typeof g.opponent !== 'string') g.opponent = '';
+    if(typeof g.veld !== 'string') g.veld = '';
+    if(typeof g.ownScore !== 'string') g.ownScore = '';
+    if(typeof g.oppScore !== 'string') g.oppScore = '';
+  });
+  if(typeof m.witShirt !== 'boolean') m.witShirt = true;
+  if(typeof m.indoor !== 'boolean') m.indoor = false;
+  if(typeof m.address !== 'string') m.address = '';
+  return m;
+}
+
+function gameTimeVeldLabel(g){
+  const timePart = g.time ? g.time+'u' : 'tijd n.b.';
+  const veldPart = g.veld ? ' · veld '+g.veld : '';
+  return timePart + veldPart;
+}
+
+function opponentsTitle(match){
+  return match.games.map(g=>g.opponent).join(' & ');
+}
+
+// Formulierstatus voor het toevoegen/bewerken van een wedstrijd in het
+// beheerpaneel. formGames is een array zodat je meerdere tegenstanders
+// (achter elkaar gespeeld op dezelfde dag) in één keer kunt invoeren.
+let formGames = [blankGame()];
+let formBasic = { date:'', location:'thuis', address:'', witShirt:true, indoor:false };
+
+function resetForm(){
+  formBasic = { date:'', location:'thuis', address:'', witShirt:true, indoor:false };
+  formGames = [blankGame()];
+}
 
 // Officiële programma van hockeystanden.nl (Poule N), opgehaald 28-8-2026.
 // Wordt alleen gebruikt om de lijst eenmalig te vullen als er nog geen wedstrijden zijn opgeslagen.
@@ -549,6 +614,13 @@ function subtractMinutes(timeStr, mins){
   return hh + ':' + mm;
 }
 
+// Rondt een aantal minuten naar boven af op een kwartier, zodat de
+// verzameltijd een rond, makkelijk te onthouden tijdstip blijft in plaats
+// van bijv. "08:07 uur" door een reistijd-schatting op de minuut nauwkeurig.
+function roundUpToQuarter(mins){
+  return Math.ceil(mins / 15) * 15;
+}
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -564,7 +636,7 @@ function defaultResp(){
 // Vul hieronder de URL in die je krijgt na het implementeren van de
 // Apps Script (zie instructies die je apart hebt gekregen). Zonder deze URL
 // kan de app niet opslaan.
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTIyvPnKcW4l-DRN0e0Z2VDUwwcyBCilAVXr-dNUtIwFtvLsIUMa4f4lGwTR0pvTTt/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxKjzB3_WgypCvqclbTEE6G221mXFSLWEhk6X2GjFeZDqPo5lkm9-d5FiIC0HkpCcfaAA/exec';
 
 async function apiGet(key){
   const res = await fetch(SCRIPT_URL + '?key=' + encodeURIComponent(key));
@@ -634,6 +706,7 @@ async function loadAll(){
   matches = [];
   responses = {};
   weatherData = {};
+  travelData = {};
   let hasNewScheme = false;
 
   Object.keys(raw).forEach(function(k){
@@ -654,6 +727,10 @@ async function loadAll(){
     if(k.indexOf('weather:') === 0){
       const id = k.slice(8);
       try{ weatherData[id] = JSON.parse(raw[k]); }catch(e){ /* negeren */ }
+    }
+    if(k.indexOf('travel:') === 0){
+      const id = k.slice(7);
+      try{ travelData[id] = JSON.parse(raw[k]); }catch(e){ /* negeren */ }
     }
   });
 
@@ -687,12 +764,7 @@ async function loadAll(){
     }
   }
 
-  matches.forEach(m=>{
-    if(typeof m.witShirt !== 'boolean') m.witShirt = true;
-    if(typeof m.veld !== 'string') m.veld = '';
-    if(typeof m.ownScore !== 'string') m.ownScore = '';
-    if(typeof m.oppScore !== 'string') m.oppScore = '';
-  });
+  matches.forEach(migrateToGames_);
   matches.forEach(m=>{
     if(!responses[m.id]) responses[m.id] = defaultResp();
     if(!responses[m.id].chauffeurs) responses[m.id].chauffeurs = [];
@@ -715,9 +787,9 @@ function onWhoChange(){
   render();
 }
 
-// Slaat uitsluitend de gegevens van déze ene wedstrijd op (datum, tijd,
-// tegenstander, veld, adres, uitslag, wit-shirt-vlag) — raakt nooit de
-// antwoorden-cel van deze of een andere wedstrijd aan.
+// Slaat uitsluitend de gegevens van déze ene wedstrijd op (datum, locatie,
+// adres, veld/zaal, uitslag, wit-shirt-vlag, de 'games'-lijst) — raakt nooit
+// de antwoorden-cel van deze of een andere wedstrijd aan.
 async function saveMatch(matchId){
   const m = matches.find(x=>x.id === matchId);
   if(!m) return;
@@ -742,8 +814,14 @@ function fmtDateLong(iso){
   return dagen[d.getDay()] + ' ' + d.getDate() + ' ' + MAANDEN[d.getMonth()];
 }
 
+// Sorteert op datum, en bij gelijke datum op de tijd van de eerste
+// wedstrijd van die speeldag (match.games is altijd al op tijd gesorteerd).
+function sortKey(m){
+  return m.date + (m.games[0] ? m.games[0].time : '');
+}
+
 function sortedMatches(){
-  return [...matches].sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+  return [...matches].sort((a,b)=> sortKey(a).localeCompare(sortKey(b)));
 }
 
 // Voor de weergave aan ouders: aankomende wedstrijden altijd bovenaan
@@ -753,9 +831,9 @@ function sortedMatches(){
 function displayMatches(){
   const today = todayISO();
   const upcoming = matches.filter(m=>m.date >= today)
-    .sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+    .sort((a,b)=> sortKey(a).localeCompare(sortKey(b)));
   const played = matches.filter(m=>m.date < today)
-    .sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
+    .sort((a,b)=> sortKey(b).localeCompare(sortKey(a)));
   return [...upcoming, ...played];
 }
 
@@ -875,21 +953,39 @@ function render(){
       `;
     }
 
-    const veldInfo = match.veld ? ` · Veld ${match.veld}` : '';
-    const locAddr = (match.address ? ` · ${match.address}` : '') + veldInfo;
+    // Eén speeldag kan uit meerdere achter-elkaar gespeelde wedstrijden
+    // bestaan (match.games) — maar er is maar 1 keer beschikbaarheid, fruit,
+    // chauffeurs en spelbegeleiders voor de hele speeldag, vandaar dat al
+    // het bovenstaande (rows/fruitChips/chauffeurs/begeleiders) op match.id
+    // blijft werken, niet per tegenstander.
+    const games = match.games;
+    const oppTitle = opponentsTitle(match);
+    const titleLine = match.location === 'thuis' ? OWN_TEAM + ' vs ' + oppTitle : oppTitle + ' vs ' + OWN_TEAM;
+    const gamesTimeLabel = games.map(gameTimeVeldLabel).join(' & ');
+    const locAddr = match.address ? ` · ${match.address}` : '';
+    const firstTime = games[0].time;
 
     let gatherLine;
     if (match.location === 'uit') {
-      if (match.time) {
-        const gatherTime = subtractMinutes(match.time, 60);
-        const arriveTime = subtractMinutes(match.time, 30);
-        gatherLine = `Verzamelen om <strong>${gatherTime} uur</strong> op de parkeerplaats naast de Trits. Uiterlijk om <strong>${arriveTime} uur</strong> op locatie aanwezig.`;
+      // De regel "30 minuten voor aanvang op locatie" is vast. Hoe ver van
+      // tevoren we bij de Trits verzamelen, hangt af van de rijtijd naar die
+      // locatie — bij een wedstrijd verder weg verzamelen we dus eerder dan
+      // bij een wedstrijd dichtbij. Is de rijtijd (nog) niet bekend, dan
+      // vallen we terug op de oude vaste aanname van 30 minuten rijden.
+      // Bij meerdere wedstrijden achter elkaar geldt dit voor de eerste.
+      const travel = travelData[match.id];
+      const driveMinutes = travel ? travel.minutes : 30;
+      const minutesBefore = roundUpToQuarter(30 + driveMinutes);
+      if (firstTime) {
+        const gatherTime = subtractMinutes(firstTime, minutesBefore);
+        const arriveTime = subtractMinutes(firstTime, 30);
+        gatherLine = `Verzamelen om <strong>${gatherTime} uur</strong> op de parkeerplaats naast de Trits${travel ? ' (± ' + travel.minutes + ' min rijden)' : ''}. Uiterlijk om <strong>${arriveTime} uur</strong> op locatie aanwezig.`;
       } else {
-        gatherLine = 'Verzamelen 60 minuten voor de wedstrijd op de parkeerplaats naast de Trits, uiterlijk 30 minuten voor aanvang op locatie (exacte tijd volgt zodra de starttijd bekend is).';
+        gatherLine = `Verzamelen ongeveer ${minutesBefore} minuten voor de wedstrijd op de parkeerplaats naast de Trits, uiterlijk 30 minuten voor aanvang op locatie (exacte tijd volgt zodra de starttijd bekend is).`;
       }
     } else {
-      if (match.time) {
-        const arriveTime = subtractMinutes(match.time, 30);
+      if (firstTime) {
+        const arriveTime = subtractMinutes(firstTime, 30);
         gatherLine = `Uiterlijk om <strong>${arriveTime} uur</strong> op locatie aanwezig.`;
       } else {
         gatherLine = 'Uiterlijk 30 minuten voor aanvang op locatie aanwezig (exacte tijd volgt zodra de starttijd bekend is).';
@@ -898,16 +994,26 @@ function render(){
 
     const afwezigen = PLAYERS.filter(name => (r.players[name] || {}).komt === 'nee');
 
-    const isPlayed = match.ownScore !== '' && match.oppScore !== '';
+    const playedGames = games.filter(g => g.ownScore !== '' && g.oppScore !== '');
+    const isPlayed = playedGames.length > 0;
     let resultBadgeHtml = '';
-    let resultLine = '';
-    if (isPlayed) {
-      const os = Number(match.ownScore), ps = Number(match.oppScore);
+    if (games.length === 1 && isPlayed) {
+      const os = Number(games[0].ownScore), ps = Number(games[0].oppScore);
       const outcome = os > ps ? 'win' : (os < ps ? 'loss' : 'draw');
       const label = outcome === 'win' ? 'Gewonnen' : (outcome === 'loss' ? 'Verloren' : 'Gelijkspel');
       resultBadgeHtml = `<div class="tag result-${outcome}">${label} ${os}-${ps}</div>`;
-      resultLine = `<div class="announce-row"><strong>${label} ${os}-${ps}</strong></div>`;
     }
+    const resultLine = playedGames.map(g => {
+      const os = Number(g.ownScore), ps = Number(g.oppScore);
+      const outcome = os > ps ? 'win' : (os < ps ? 'loss' : 'draw');
+      const label = outcome === 'win' ? 'Gewonnen' : (outcome === 'loss' ? 'Verloren' : 'Gelijkspel');
+      return `<div class="announce-row"><strong>${label} ${os}-${ps}</strong>${games.length > 1 ? ' tegen ' + g.opponent : ''}</div>`;
+    }).join('');
+
+    const programmaHtml = games.length > 1
+      ? `<div class="announce-row">🗓️ Programma: ${games.map(g => g.opponent + ' (' + gameTimeVeldLabel(g) + ')').join(' · ')}</div>`
+      : '';
+    const veldTagHtml = (games.length === 1 && games[0].veld) ? ` <span class="tag veld">Veld ${games[0].veld}</span>` : '';
 
     const chauffeurNames = (r.chauffeurs || []);
     const begeleiderNames = (r.begeleiders || []);
@@ -930,9 +1036,10 @@ function render(){
 
     const announceHtml = `
       <div class="announce-box">
-        <div class="announce-title">📣 Aankondiging — ${match.location === 'thuis' ? OWN_TEAM + ' vs ' + match.opponent : match.opponent + ' vs ' + OWN_TEAM}</div>
-        <div class="announce-row"><span class="tag ${match.location}">${match.location === 'thuis' ? 'Thuiswedstrijd' : 'Uitwedstrijd'}</span>${match.veld ? ' <span class="tag veld">Veld ' + match.veld + '</span>' : ''}</div>
+        <div class="announce-title">📣 Aankondiging — ${titleLine}</div>
+        <div class="announce-row"><span class="tag ${match.location}">${match.location === 'thuis' ? 'Thuiswedstrijd' : 'Uitwedstrijd'}</span>${veldTagHtml}</div>
         ${match.address ? '<div class="announce-row">📍 ' + match.address + '</div>' : ''}
+        ${programmaHtml}
         ${weatherLine}
         ${resultLine}
         ${afwezigen.length ? '<div class="announce-row warn">⚠️ Afwezig: ' + afwezigen.join(', ') + '.</div>' : ''}
@@ -950,10 +1057,10 @@ function render(){
         <div class="match-top" onclick="toggleMatch('${match.id}')">
           <div class="date-badge"><div class="d">${d}</div><div class="m">${m}</div></div>
           <div class="match-info">
-            <div class="opp">${match.location === 'thuis' ? OWN_TEAM + ' vs ' + match.opponent : match.opponent + ' vs ' + OWN_TEAM}</div>
-            <div class="meta">${fmtDateLong(match.date)}${match.time ? ', '+match.time+'u' : ' · tijd nog niet bekend'}${locAddr}</div>
+            <div class="opp">${titleLine}</div>
+            <div class="meta">${fmtDateLong(match.date)}, ${gamesTimeLabel}${locAddr}</div>
           </div>
-          ${isPlayed ? resultBadgeHtml : '<div class="tag ' + match.location + '">' + (match.location === 'thuis' ? 'Thuis' : 'Uit') + '</div>'}
+          ${(games.length === 1 && isPlayed) ? resultBadgeHtml : '<div class="tag ' + match.location + '">' + (match.location === 'thuis' ? 'Thuis' : 'Uit') + '</div>'}
           <div class="chev">▾</div>
         </div>
         <div class="match-body">
@@ -1045,15 +1152,17 @@ function toggleAdmin(){
 function renderAdmin(){
   if(!adminOpen) return;
   const panel = document.getElementById('adminPanel');
-  const editing = editingMatchId ? matches.find(m=>m.id === editingMatchId) : null;
 
   const existing = sortedMatches().map(m=>{
     const witShirtActive = m.witShirt ? 'active' : '';
     const isBeingEdited = m.id === editingMatchId;
-    const scoreInfo = (m.ownScore !== '' && m.oppScore !== '') ? ` — ${m.ownScore}-${m.oppScore}` : '';
+    const gamesInfo = m.games.map(g=>{
+      const scoreInfo = (g.ownScore !== '' && g.oppScore !== '') ? ` (${g.ownScore}-${g.oppScore})` : '';
+      return `vs ${g.opponent}${g.time ? ' ' + g.time + 'u' : ''}${g.veld ? ' veld ' + g.veld : ''}${scoreInfo}`;
+    }).join(' & ');
     return `
       <div class="existing-match ${isBeingEdited ? 'editing' : ''}">
-        <div class="em-info">${fmtDateLong(m.date)}${m.time?', '+m.time+'u':' · tijd nog niet bekend'} — vs ${m.opponent} (${m.location})${m.veld ? ', veld '+m.veld : ''}${scoreInfo}</div>
+        <div class="em-info">${fmtDateLong(m.date)} (${m.location}) — ${gamesInfo}</div>
       </div>
       <div class="existing-match-flags">
         <div class="flag-toggle ${witShirtActive}" onclick="toggleMatchFlag('${m.id}','witShirt')">Wit shirt</div>
@@ -1062,89 +1171,150 @@ function renderAdmin(){
       </div>`;
   }).join('') || '<p style="font-size:13px;color:var(--grey);">Nog geen wedstrijden.</p>';
 
-  const f = editing || { date:'', time:'', opponent:'', location:'thuis', veld:'', address:'', witShirt:true, ownScore:'', oppScore:'' };
+  const gameRowsHtml = formGames.map((g,i)=>`
+    <div class="game-block">
+      <div class="game-block-head">
+        <span>Wedstrijd ${i+1}</span>
+        ${formGames.length > 1 ? `<button type="button" class="del-btn" onclick="removeFormGame(${i})">× Verwijder</button>` : ''}
+      </div>
+      <div class="form-row">
+        <label>Tegenstander</label>
+        <input type="text" id="f-game-opponent-${i}" placeholder="Bijv. Kampong MO8-3" value="${g.opponent}">
+      </div>
+      <div class="form-row">
+        <label>Tijd</label>
+        <input type="time" id="f-game-time-${i}" value="${g.time}">
+      </div>
+      <div class="form-row">
+        <label>Veld (van hockeystanden.nl, indien bekend)</label>
+        <input type="text" id="f-game-veld-${i}" placeholder="Bijv. 2" value="${g.veld}">
+      </div>
+      <div class="form-row">
+        <label>Uitslag (invullen zodra gespeeld — leeg laten tot dan)</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="number" min="0" id="f-game-ownscore-${i}" placeholder="Baarn" value="${g.ownScore}" style="text-align:center;">
+          <span style="color:var(--grey);">–</span>
+          <input type="number" min="0" id="f-game-oppscore-${i}" placeholder="Tegenstander" value="${g.oppScore}" style="text-align:center;">
+        </div>
+      </div>
+    </div>
+  `).join('');
 
   panel.innerHTML = `
-    <h3>${editing ? 'Wedstrijd bewerken — vs ' + editing.opponent : 'Wedstrijd toevoegen'}</h3>
+    <h3>${editingMatchId ? 'Wedstrijd(en) bewerken' : 'Wedstrijd toevoegen'}</h3>
     <div class="form-row">
       <label>Datum</label>
-      <input type="date" id="f-date" value="${f.date}">
-    </div>
-    <div class="form-row">
-      <label>Tijd</label>
-      <input type="time" id="f-time" value="${f.time}">
-    </div>
-    <div class="form-row">
-      <label>Tegenstander</label>
-      <input type="text" id="f-opponent" placeholder="Bijv. Kampong MO8-3" value="${f.opponent}">
+      <input type="date" id="f-date" value="${formBasic.date}">
     </div>
     <div class="form-row">
       <label>Thuis of uit</label>
       <select id="f-location">
-        <option value="thuis" ${f.location==='thuis'?'selected':''}>Thuis</option>
-        <option value="uit" ${f.location==='uit'?'selected':''}>Uit</option>
+        <option value="thuis" ${formBasic.location==='thuis'?'selected':''}>Thuis</option>
+        <option value="uit" ${formBasic.location==='uit'?'selected':''}>Uit</option>
       </select>
     </div>
     <div class="form-row">
-      <label>Veld (van hockeystanden.nl, indien bekend)</label>
-      <input type="text" id="f-veld" placeholder="Bijv. 2" value="${f.veld}">
-    </div>
-    <div class="form-row">
       <label>Adres / locatie (optioneel, handig bij uitwedstrijden)</label>
-      <input type="text" id="f-address" placeholder="Bijv. Sportpark X, Plaats" value="${f.address}">
+      <input type="text" id="f-address" placeholder="Bijv. Sportpark X, Plaats" value="${formBasic.address}">
     </div>
     <div class="form-row checkbox-row">
-      <label><input type="checkbox" id="f-witshirt" ${f.witShirt?'checked':''}> Wit shirt meenemen vermelden</label>
+      <label><input type="checkbox" id="f-witshirt" ${formBasic.witShirt?'checked':''}> Wit shirt meenemen vermelden</label>
     </div>
-    <div class="form-row">
-      <label>Uitslag (invullen zodra gespeeld — leeg laten tot dan)</label>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <input type="number" min="0" id="f-ownscore" placeholder="Baarn" value="${f.ownScore}" style="text-align:center;">
-        <span style="color:var(--grey);">–</span>
-        <input type="number" min="0" id="f-oppscore" placeholder="Tegenstander" value="${f.oppScore}" style="text-align:center;">
-      </div>
+    <div class="form-row checkbox-row">
+      <label><input type="checkbox" id="f-indoor" ${formBasic.indoor?'checked':''}> Zaalhockey (binnen) — geen weersverwachting tonen</label>
     </div>
-    <button class="btn-primary" onclick="saveMatchForm()">${editing ? 'Wijzigingen opslaan' : 'Wedstrijd toevoegen'}</button>
-    ${editing ? '<button class="link-btn" style="width:100%;margin-top:4px;" onclick="cancelEditMatch()">Annuleren</button>' : ''}
+    <p style="font-size:12px;color:var(--grey);margin:14px 2px 6px;">Spelen jullie die dag achter elkaar tegen meerdere tegenstanders (bijv. bij zaalhockey)? Voeg ze hieronder allemaal toe — ouders geven dan maar één keer beschikbaarheid door voor de hele speeldag.</p>
+    ${gameRowsHtml}
+    <button type="button" class="edit-btn" style="width:100%; margin-bottom:12px;" onclick="addFormGame()">+ Extra tegenstander (zelfde dag)</button>
+    <button class="btn-primary" onclick="saveMatchForm()">${editingMatchId ? 'Wijzigingen opslaan' : 'Wedstrijd toevoegen'}</button>
+    ${editingMatchId ? '<button class="link-btn" style="width:100%;margin-top:4px;" onclick="cancelEditMatch()">Annuleren</button>' : ''}
     <h3 style="margin-top:20px;">Bestaande wedstrijden</h3>
     <p style="font-size:12px;color:var(--grey);margin:0 0 4px;">"Afwezig" in de aankondiging wordt automatisch bepaald uit wie "Nee" heeft aangegeven bij Komt — daar hoef je hier niets voor te doen.</p>
     ${existing}
   `;
 }
 
+// Leest de huidige invoer uit het formulier terug in formBasic/formGames,
+// zodat getypte (nog niet opgeslagen) waarden niet verloren gaan wanneer
+// een extra tegenstander-rij wordt toegevoegd of verwijderd (wat het
+// formulier opnieuw opbouwt).
+function readFormFromDom(){
+  const dateEl = document.getElementById('f-date');
+  if(!dateEl) return;
+  formBasic.date = dateEl.value;
+  formBasic.location = document.getElementById('f-location').value;
+  formBasic.address = document.getElementById('f-address').value;
+  formBasic.witShirt = document.getElementById('f-witshirt').checked;
+  formBasic.indoor = document.getElementById('f-indoor').checked;
+  formGames.forEach((g,i)=>{
+    const oppEl = document.getElementById('f-game-opponent-'+i);
+    if(!oppEl) return;
+    g.time = document.getElementById('f-game-time-'+i).value;
+    g.opponent = oppEl.value;
+    g.veld = document.getElementById('f-game-veld-'+i).value;
+    g.ownScore = document.getElementById('f-game-ownscore-'+i).value;
+    g.oppScore = document.getElementById('f-game-oppscore-'+i).value;
+  });
+}
+
+function addFormGame(){
+  readFormFromDom();
+  formGames.push(blankGame());
+  renderAdmin();
+}
+
+function removeFormGame(i){
+  readFormFromDom();
+  if(formGames.length <= 1) return;
+  formGames.splice(i,1);
+  renderAdmin();
+}
+
 function startEditMatch(id){
   editingMatchId = id;
+  const m = matches.find(x=>x.id===id);
+  if(m){
+    formBasic = { date: m.date, location: m.location, address: m.address, witShirt: m.witShirt, indoor: m.indoor };
+    formGames = (m.games && m.games.length ? m.games : [blankGame()]).map(g=>({...g}));
+  }
   renderAdmin();
 }
 
 function cancelEditMatch(){
   editingMatchId = null;
+  resetForm();
   renderAdmin();
 }
 
 async function saveMatchForm(){
   const date = document.getElementById('f-date').value;
-  const time = document.getElementById('f-time').value;
-  const opponent = document.getElementById('f-opponent').value.trim();
   const location = document.getElementById('f-location').value;
-  const veld = document.getElementById('f-veld').value.trim();
   const address = document.getElementById('f-address').value.trim();
   const witShirt = document.getElementById('f-witshirt').checked;
-  const ownScore = document.getElementById('f-ownscore').value.trim();
-  const oppScore = document.getElementById('f-oppscore').value.trim();
+  const indoor = document.getElementById('f-indoor').checked;
 
-  if(!date || !opponent){
-    showToast('Vul minstens datum en tegenstander in');
+  const games = formGames.map((_, i)=>({
+    time: document.getElementById('f-game-time-'+i).value,
+    opponent: document.getElementById('f-game-opponent-'+i).value.trim(),
+    veld: document.getElementById('f-game-veld-'+i).value.trim(),
+    ownScore: document.getElementById('f-game-ownscore-'+i).value.trim(),
+    oppScore: document.getElementById('f-game-oppscore-'+i).value.trim()
+  })).filter(g=>g.opponent); // lege rijen (zonder tegenstander) negeren
+
+  if(!date || games.length === 0){
+    showToast('Vul minstens datum en één tegenstander in');
     return;
   }
+  games.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 
   if(editingMatchId){
     const savingId = editingMatchId;
     const m = matches.find(x=>x.id === savingId);
     if(m){
-      Object.assign(m, { date, time, opponent, location, veld, address, witShirt, ownScore, oppScore });
+      Object.assign(m, { date, location, address, witShirt, indoor, games });
     }
     editingMatchId = null;
+    resetForm();
     try{
       await saveMatch(savingId);
       showToast('Wedstrijd bijgewerkt');
@@ -1153,8 +1323,9 @@ async function saveMatchForm(){
     }
   }else{
     const id = 'm' + Date.now();
-    matches.push({ id, date, time, opponent, location, address, veld, witShirt, ownScore, oppScore });
+    matches.push({ id, date, location, address, witShirt, indoor, games });
     responses[id] = defaultResp();
+    resetForm();
     try{
       await saveMatch(id);
       await saveResp(id);
@@ -1182,11 +1353,13 @@ async function deleteMatch(id){
   matches = matches.filter(m=>m.id !== id);
   delete responses[id];
   delete weatherData[id];
+  delete travelData[id];
   if(editingMatchId === id) editingMatchId = null;
   try{
     await apiDelete('match:'+id);
     await apiDelete('resp:'+id);
     await apiDelete('weather:'+id);
+    await apiDelete('travel:'+id);
     showToast('Wedstrijd verwijderd');
   }catch(e){
     showToast('Verwijderen mislukt');
